@@ -291,26 +291,54 @@ class MainActivity : AppCompatActivity() {
             WhisperAccessibilityService.instance?.refreshOverlaySettings()
         })
 
-        settingsContainer.addView(settingsRow(
+        lateinit var bubbleSizeSub: TextView
+        val bubbleSizeRow = settingsRow(
             "Bubble size",
             "${prefs().getInt("bubble_size_dp", 44)} dp"
         ) {
-            showIntSlider("Bubble size", "bubble_size_dp", 32, 72, 44, " dp")
-        })
+            showIntSlider("Bubble size", "bubble_size_dp", 32, 72, 44, " dp") { value ->
+                bubbleSizeSub.text = "$value dp"
+            }
+        }
+        bubbleSizeSub = bubbleSizeRow.findViewWithTag("subtitle")
+        settingsContainer.addView(bubbleSizeRow)
 
-        settingsContainer.addView(settingsRow(
+        lateinit var dotSizeSub: TextView
+        val dotSizeRow = settingsRow(
             "Dot size",
             "${prefs().getInt("dot_size_dp", 10)} dp"
         ) {
-            showIntSlider("Dot size", "dot_size_dp", 6, 18, 10, " dp")
-        })
+            showIntSlider("Dot size", "dot_size_dp", 6, 18, 10, " dp") { value ->
+                dotSizeSub.text = "$value dp"
+            }
+        }
+        dotSizeSub = dotSizeRow.findViewWithTag("subtitle")
+        settingsContainer.addView(dotSizeRow)
 
-        settingsContainer.addView(settingsRow(
+        lateinit var dotTimeoutSub: TextView
+        val dotTimeoutSeconds = prefs().getInt("dot_timeout_seconds", 3).coerceIn(0, 10)
+        val dotTimeoutRow = settingsRow(
+            "Dot visible time",
+            if (dotTimeoutSeconds == 0) "Always" else "$dotTimeoutSeconds s"
+        ) {
+            showDotTimeoutDialog { seconds ->
+                dotTimeoutSub.text = if (seconds == 0) "Always" else "$seconds s"
+            }
+        }
+        dotTimeoutSub = dotTimeoutRow.findViewWithTag("subtitle")
+        settingsContainer.addView(dotTimeoutRow)
+
+        lateinit var inactiveAlphaSub: TextView
+        val inactiveAlphaRow = settingsRow(
             "Inactive transparency",
             "${prefs().getInt("overlay_alpha_percent", 70)}%"
         ) {
-            showIntSlider("Inactive transparency", "overlay_alpha_percent", 20, 100, 70, "%")
-        })
+            showIntSlider("Inactive transparency", "overlay_alpha_percent", 20, 100, 70, "%") { value ->
+                inactiveAlphaSub.text = "$value%"
+            }
+        }
+        inactiveAlphaSub = inactiveAlphaRow.findViewWithTag("subtitle")
+        settingsContainer.addView(inactiveAlphaRow)
 
         val systemOverlaySwitch = MaterialSwitch(this).apply {
             isChecked = prefs().getBoolean("system_overlay_enabled", false) && Settings.canDrawOverlays(this@MainActivity)
@@ -857,7 +885,8 @@ class MainActivity : AppCompatActivity() {
         min: Int,
         max: Int,
         defaultValue: Int,
-        suffix: String
+        suffix: String,
+        onSaved: ((Int) -> Unit)? = null
     ) {
         val current = prefs().getInt(prefKey, defaultValue).coerceIn(min, max)
         val valueLabel = TextView(this).apply {
@@ -886,8 +915,30 @@ class MainActivity : AppCompatActivity() {
             .setTitle(title)
             .setView(content)
             .setPositiveButton("Save") { _, _ ->
-                prefs().edit().putInt(prefKey, min + seek.progress).apply()
+                val value = min + seek.progress
+                prefs().edit().putInt(prefKey, value).apply()
+                onSaved?.invoke(value)
                 WhisperAccessibilityService.instance?.refreshOverlaySettings()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showDotTimeoutDialog(onSaved: (Int) -> Unit) {
+        val labels = Array(11) { index ->
+            if (index == 10) "Always" else "${index + 1} seconds"
+        }
+        val current = prefs().getInt("dot_timeout_seconds", 3).coerceIn(0, 10)
+        val checked = if (current == 0) 10 else current - 1
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Dot visible time")
+            .setSingleChoiceItems(labels, checked) { dialog, which ->
+                val seconds = if (which == 10) 0 else which + 1
+                prefs().edit().putInt("dot_timeout_seconds", seconds).apply()
+                onSaved(seconds)
+                WhisperAccessibilityService.instance?.refreshOverlaySettings()
+                dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
             .show()
