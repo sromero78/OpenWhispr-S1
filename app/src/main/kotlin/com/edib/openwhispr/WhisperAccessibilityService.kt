@@ -108,8 +108,8 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     private val hideDot = Runnable {
         dotHideScheduled = false
-        val inactive = state == State.IDLE && !accessibilityFocusSignal && !imeVisibleSignal
-        if (inactive && prefs().getBoolean("minimize_to_dot", false)) {
+        val keyboardGone = state == State.IDLE && !imeVisibleSignal
+        if (keyboardGone && prefs().getBoolean("minimize_to_dot", false)) {
             dotExpired = true
             if (overlayShown) animateOverlayOut()
             overlayShown = false
@@ -263,7 +263,19 @@ class WhisperAccessibilityService : AccessibilityService() {
      * focus events at all, since this signal comes from the window manager
      * rather than the foreground app's own accessibility tree. */
     private fun onKeyboardVisibilityChanged(visible: Boolean) {
+        val wasVisible = imeVisibleSignal
         imeVisibleSignal = visible
+
+        // Some apps (notably WhatsApp) keep the composer accessibility-focused
+        // after the keyboard is dismissed. Treat the IME closing as the real
+        // "typing session ended" signal so an expanded bubble collapses to dot.
+        if (wasVisible && !visible && state == State.IDLE) {
+            bubbleExpandedFromDot = false
+            dotExpired = false
+            handler.removeCallbacks(hideDot)
+            dotHideScheduled = false
+        }
+
         updateOverlayVisibility()
     }
 
@@ -300,10 +312,19 @@ class WhisperAccessibilityService : AccessibilityService() {
                 showOverlayState(minimized = false)
             }
             writingContext && minimizeToDot -> {
-                handler.removeCallbacks(hideDot)
-                dotHideScheduled = false
-                dotExpired = false
                 showOverlayState(minimized = true)
+
+                // While the keyboard is visible, keep the dot available.
+                // If the keyboard is gone but the app keeps its text field
+                // focused (WhatsApp does this), start the normal auto-hide timer.
+                if (imeVisibleSignal) {
+                    handler.removeCallbacks(hideDot)
+                    dotHideScheduled = false
+                    dotExpired = false
+                } else if (!dotExpired && dotTimeoutSeconds > 0 && !dotHideScheduled) {
+                    dotHideScheduled = true
+                    handler.postDelayed(hideDot, dotTimeoutSeconds * 1000L)
+                }
             }
             writingContext -> {
                 handler.removeCallbacks(hideDot)
