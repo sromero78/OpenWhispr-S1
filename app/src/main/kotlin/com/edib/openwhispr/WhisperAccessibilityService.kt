@@ -294,8 +294,14 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     fun refreshOverlaySettings() {
         handler.post {
-            removeOverlay()
-            showOverlay()
+            try {
+                removeOverlay()
+            } catch (e: Exception) {
+                Log.w(TAG, "Overlay removal during settings refresh failed", e)
+            }
+            overlayShown = false
+            overlayMinimized = false
+            ensureOverlayAttached(force = true)
             updateOverlayVisibility()
         }
     }
@@ -328,6 +334,9 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     private fun showOverlayState(minimized: Boolean) {
         ensureOverlayAttached()
+        if (overlayShown && overlayMinimized == minimized && overlayView?.visibility == View.VISIBLE) {
+            return
+        }
         applyOverlayPresentation(minimized)
         overlayShown = true
         animateOverlayIn()
