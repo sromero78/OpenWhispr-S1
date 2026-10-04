@@ -82,6 +82,7 @@ class WhisperAccessibilityService : AccessibilityService() {
     private var overlayMinimized = false
     private var dotExpired = false
     private var dotHideScheduled = false
+    private var bubbleExpandedFromDot = false
 
     // Two independent signals feed overlay visibility (OR'd together): an
     // accessibility-tree focus check (event-driven AND polled as a failsafe,
@@ -271,17 +272,40 @@ class WhisperAccessibilityService : AccessibilityService() {
             handler.removeCallbacks(hideDot)
             dotHideScheduled = false
             dotExpired = false
+            bubbleExpandedFromDot = false
             if (overlayShown) animateOverlayOut()
             overlayShown = false
             return
         }
 
-        val activeContext = accessibilityFocusSignal || imeVisibleSignal || state != State.IDLE
+        val writingContext = accessibilityFocusSignal || imeVisibleSignal
         val minimizeToDot = prefs().getBoolean("minimize_to_dot", false)
         val dotTimeoutSeconds = prefs().getInt("dot_timeout_seconds", 3).coerceIn(0, 10)
 
+        // Leaving a text/keyboard context collapses any manually expanded bubble
+        // back to the dot. Outside writing contexts the dot may then auto-hide.
+        if (!writingContext && state == State.IDLE) {
+            bubbleExpandedFromDot = false
+        }
+
         when {
-            activeContext -> {
+            state != State.IDLE -> {
+                handler.removeCallbacks(hideDot)
+                dotHideScheduled = false
+                showOverlayState(minimized = false)
+            }
+            bubbleExpandedFromDot -> {
+                handler.removeCallbacks(hideDot)
+                dotHideScheduled = false
+                showOverlayState(minimized = false)
+            }
+            writingContext && minimizeToDot -> {
+                handler.removeCallbacks(hideDot)
+                dotHideScheduled = false
+                dotExpired = false
+                showOverlayState(minimized = true)
+            }
+            writingContext -> {
                 handler.removeCallbacks(hideDot)
                 dotHideScheduled = false
                 dotExpired = false
@@ -696,7 +720,17 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     private fun onTap() {
         when (state) {
-            State.IDLE -> startRecording()
+            State.IDLE -> {
+                if (prefs().getBoolean("minimize_to_dot", false) && overlayMinimized) {
+                    handler.removeCallbacks(hideDot)
+                    dotHideScheduled = false
+                    dotExpired = false
+                    bubbleExpandedFromDot = true
+                    showOverlayState(minimized = false)
+                } else {
+                    startRecording()
+                }
+            }
             State.RECORDING -> stopAndTranscribe()
             State.TRANSCRIBING -> {}
         }
@@ -966,6 +1000,7 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     private fun goIdle() {
         state = State.IDLE
+        bubbleExpandedFromDot = false
         setBusy(false)
         setAppearance(COLOR_IDLE)
         setIcon(R.drawable.ic_app_logo)
