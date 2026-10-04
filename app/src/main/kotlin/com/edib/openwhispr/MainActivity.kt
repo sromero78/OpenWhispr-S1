@@ -94,7 +94,7 @@ class MainActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(dp(40), dp(40)).apply { marginEnd = dp(12) }
         })
         header.addView(TextView(this).apply {
-            text = "OpenWispr"
+            text = "OpenWispr Dev"
             textSize = 32f
         })
         outer.addView(header)
@@ -389,7 +389,7 @@ class MainActivity : AppCompatActivity() {
 
         settingsContainer.addView(settingsRow("GitHub", "View source & releases") {
             try {
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/EdiBianco/OpenWhispr")))
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/sromero78/OpenWhispr-S1")))
             } catch (e: Exception) {
                 toast("Couldn't open browser: ${e.message}")
             }
