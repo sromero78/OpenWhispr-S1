@@ -388,7 +388,7 @@ class MainActivity : AppCompatActivity() {
         refresh()
     }
 
-    override fun onResume() { super.onResume(); refresh(); WhisperAccessibilityService.instance?.refreshOverlaySettings() }
+    override fun onResume() { super.onResume(); refresh() }
     override fun onRequestPermissionsResult(c: Int, p: Array<String>, r: IntArray) {
         super.onRequestPermissionsResult(c, p, r); refresh()
     }
