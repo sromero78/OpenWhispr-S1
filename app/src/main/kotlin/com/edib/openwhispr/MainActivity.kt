@@ -274,6 +274,82 @@ class MainActivity : AppCompatActivity() {
         keyRowSub = keyRow.findViewWithTag("subtitle")
         settingsContainer.addView(keyRow)
 
+        settingsContainer.addView(sectionHeader("Overlay"))
+
+        val minimizeSwitch = MaterialSwitch(this).apply {
+            isChecked = prefs().getBoolean("minimize_to_dot", false)
+            isClickable = false
+        }
+        settingsContainer.addView(settingsRow(
+            "Minimize to dot",
+            "Show a small point outside text fields instead of hiding completely",
+            minimizeSwitch
+        ) {
+            val enabled = !minimizeSwitch.isChecked
+            minimizeSwitch.isChecked = enabled
+            prefs().edit().putBoolean("minimize_to_dot", enabled).apply()
+            WhisperAccessibilityService.instance?.refreshOverlaySettings()
+        })
+
+        settingsContainer.addView(settingsRow(
+            "Bubble size",
+            "${prefs().getInt("bubble_size_dp", 44)} dp"
+        ) {
+            showIntSlider("Bubble size", "bubble_size_dp", 32, 72, 44, " dp")
+        })
+
+        settingsContainer.addView(settingsRow(
+            "Dot size",
+            "${prefs().getInt("dot_size_dp", 10)} dp"
+        ) {
+            showIntSlider("Dot size", "dot_size_dp", 6, 18, 10, " dp")
+        })
+
+        settingsContainer.addView(settingsRow(
+            "Inactive transparency",
+            "${prefs().getInt("overlay_alpha_percent", 70)}%"
+        ) {
+            showIntSlider("Inactive transparency", "overlay_alpha_percent", 20, 100, 70, "%")
+        })
+
+        val systemOverlaySwitch = MaterialSwitch(this).apply {
+            isChecked = prefs().getBoolean("system_overlay_enabled", false) && Settings.canDrawOverlays(this@MainActivity)
+            isClickable = false
+        }
+        settingsContainer.addView(settingsRow(
+            "System overlay fallback",
+            "Optional 'Display over other apps' layer for extra resilience",
+            systemOverlaySwitch
+        ) {
+            if (systemOverlaySwitch.isChecked) {
+                prefs().edit().putBoolean("system_overlay_enabled", false).apply()
+                systemOverlaySwitch.isChecked = false
+                WhisperAccessibilityService.instance?.refreshOverlaySettings()
+            } else if (Settings.canDrawOverlays(this)) {
+                prefs().edit().putBoolean("system_overlay_enabled", true).apply()
+                systemOverlaySwitch.isChecked = true
+                WhisperAccessibilityService.instance?.refreshOverlaySettings()
+            } else {
+                prefs().edit().putBoolean("system_overlay_enabled", true).apply()
+                try {
+                    startActivity(Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:$packageName")
+                    ))
+                } catch (e: Exception) {
+                    toast("Couldn't open overlay permission: ${e.message}")
+                }
+            }
+        })
+
+        settingsContainer.addView(settingsRow(
+            "Restore overlay",
+            "Recreate the bubble or dot now"
+        ) {
+            WhisperAccessibilityService.instance?.restoreOverlay()
+                ?: toast("Accessibility service is not running")
+        })
+
         settingsContainer.addView(sectionHeader("About"))
 
         val versionName = try {
@@ -312,7 +388,7 @@ class MainActivity : AppCompatActivity() {
         refresh()
     }
 
-    override fun onResume() { super.onResume(); refresh() }
+    override fun onResume() { super.onResume(); refresh(); WhisperAccessibilityService.instance?.refreshOverlaySettings() }
     override fun onRequestPermissionsResult(c: Int, p: Array<String>, r: IntArray) {
         super.onRequestPermissionsResult(c, p, r); refresh()
     }
@@ -772,6 +848,49 @@ class MainActivity : AppCompatActivity() {
             .setTitle("Command examples")
             .setMessage(message)
             .setPositiveButton("Got it", null)
+            .show()
+    }
+
+    private fun showIntSlider(
+        title: String,
+        prefKey: String,
+        min: Int,
+        max: Int,
+        defaultValue: Int,
+        suffix: String
+    ) {
+        val current = prefs().getInt(prefKey, defaultValue).coerceIn(min, max)
+        val valueLabel = TextView(this).apply {
+            text = "$current$suffix"
+            textSize = 18f
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(0, dp(8), 0, dp(8))
+        }
+        val seek = SeekBar(this).apply {
+            this.max = max - min
+            progress = current - min
+            setPadding(dp(24), 0, dp(24), 0)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    valueLabel.text = "${min + progress}$suffix"
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+        val content = vertical(0).apply {
+            addView(valueLabel)
+            addView(seek)
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle(title)
+            .setView(content)
+            .setPositiveButton("Save") { _, _ ->
+                prefs().edit().putInt(prefKey, min + seek.progress).apply()
+                WhisperAccessibilityService.instance?.refreshOverlaySettings()
+                recreate()
+            }
+            .setNegativeButton("Cancel", null)
             .show()
     }
 

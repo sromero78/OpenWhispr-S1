@@ -18,6 +18,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
@@ -49,6 +50,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         private const val MARGIN_DP = 8
         private const val TAP_THRESHOLD_DP = 10
         private const val RING_DP = 56
+        private const val DOT_TOUCH_DP = 32
         private const val FEEDBACK_OFFSET_DP = 64
 
         private const val ALPHA_IDLE = 0.7f
@@ -76,6 +78,7 @@ class WhisperAccessibilityService : AccessibilityService() {
     private var state = State.IDLE
     private var overlayView: FrameLayout? = null
     private var overlayShown = false
+    private var overlayMinimized = false
 
     // Two independent signals feed overlay visibility (OR'd together): an
     // accessibility-tree focus check (event-driven AND polled as a failsafe,
@@ -100,6 +103,7 @@ class WhisperAccessibilityService : AccessibilityService() {
     }
     private val focusPoller = object : Runnable {
         override fun run() {
+            ensureOverlayAttached()
             refreshAccessibilityFocusSignal()
             handler.postDelayed(this, FOCUS_POLL_MS)
         }
@@ -114,8 +118,8 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         instance = this
-        showOverlay()
         startForegroundNotification()
+        showOverlay()
         updateOverlayVisibility()
         handler.post(focusPoller)
         // Try to load local model in background
@@ -249,20 +253,127 @@ class WhisperAccessibilityService : AccessibilityService() {
     }
 
     private fun updateOverlayVisibility() {
-        val shouldShow = masterEnabled() &&
-            (accessibilityFocusSignal || imeVisibleSignal || state != State.IDLE)
-        if (shouldShow == overlayShown) return
-        overlayShown = shouldShow
-        if (shouldShow) animateOverlayIn() else animateOverlayOut()
+        if (!masterEnabled()) {
+            if (overlayShown) animateOverlayOut()
+            overlayShown = false
+            return
+        }
+
+        val activeContext = accessibilityFocusSignal || imeVisibleSignal || state != State.IDLE
+        val minimizeToDot = prefs().getBoolean("minimize_to_dot", false)
+
+        when {
+            activeContext -> showOverlayState(minimized = false)
+            minimizeToDot -> showOverlayState(minimized = true)
+            else -> {
+                if (overlayShown) animateOverlayOut()
+                overlayShown = false
+            }
+        }
     }
 
     private fun masterEnabled() = prefs().getBoolean("service_master_enabled", true)
 
-    /** Called from MainActivity when the "Background service" switch is
-     * toggled, so an already-idle overlay hides/shows immediately instead
-     * of waiting for the next focus event or poll tick. */
+    private fun idleAlpha(): Float =
+        (prefs().getInt("overlay_alpha_percent", 70).coerceIn(20, 100) / 100f)
+
+    private fun configuredBubbleDp(): Int =
+        prefs().getInt("bubble_size_dp", BTN_DP).coerceIn(32, 72)
+
+    private fun configuredDotDp(): Int =
+        prefs().getInt("dot_size_dp", 10).coerceIn(6, 18)
+
+    private fun overlayType(): Int {
+        val wantsSystemOverlay = prefs().getBoolean("system_overlay_enabled", false)
+        return if (wantsSystemOverlay && Settings.canDrawOverlays(this)) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+        }
+    }
+
+    fun refreshOverlaySettings() {
+        handler.post {
+            removeOverlay()
+            showOverlay()
+            updateOverlayVisibility()
+        }
+    }
+
+    fun restoreOverlay() {
+        handler.post {
+            if (!masterEnabled()) return@post
+            ensureOverlayAttached(force = true)
+            val activeContext = accessibilityFocusSignal || imeVisibleSignal || state != State.IDLE
+            showOverlayState(minimized = !activeContext && prefs().getBoolean("minimize_to_dot", false))
+        }
+    }
+
     fun refreshMasterEnabled() {
         handler.post { updateOverlayVisibility() }
+    }
+
+    private fun ensureOverlayAttached(force: Boolean = false) {
+        val view = overlayView
+        if (force || view == null || !view.isAttachedToWindow) {
+            try { removeOverlay() } catch (_: Exception) {}
+            try {
+                showOverlay()
+                Log.i(TAG, "Overlay recreated")
+            } catch (e: Exception) {
+                Log.e(TAG, "Overlay recreation failed", e)
+            }
+        }
+    }
+
+    private fun showOverlayState(minimized: Boolean) {
+        ensureOverlayAttached()
+        applyOverlayPresentation(minimized)
+        overlayShown = true
+        animateOverlayIn()
+    }
+
+    private fun applyOverlayPresentation(minimized: Boolean) {
+        val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+        val view = overlayView ?: return
+        val lp = layoutParams ?: return
+        val img = button ?: return
+        val ring = spinner
+
+        overlayMinimized = minimized
+        if (minimized && state == State.IDLE) {
+            val dotPx = (configuredDotDp() * dp).toInt()
+            val touchPx = (DOT_TOUCH_DP * dp).toInt()
+            lp.width = touchPx
+            lp.height = touchPx
+            img.layoutParams = FrameLayout.LayoutParams(dotPx, dotPx, Gravity.CENTER)
+            img.setPadding(0, 0, 0, 0)
+            img.setImageDrawable(null)
+            img.background = circle(COLOR_IDLE)
+            ring?.visibility = View.GONE
+        } else {
+            val buttonPx = (configuredBubbleDp() * dp).toInt()
+            val ringPx = ((configuredBubbleDp() + 12) * dp).toInt()
+            val pad = ((configuredBubbleDp() * 10f / 44f) * dp).toInt().coerceAtLeast(4)
+            lp.width = ringPx
+            lp.height = ringPx
+            img.layoutParams = FrameLayout.LayoutParams(buttonPx, buttonPx, Gravity.CENTER)
+            img.setPadding(pad, pad, pad, pad)
+            img.setImageResource(if (state == State.IDLE) R.drawable.ic_app_logo else R.drawable.ic_mic)
+            img.background = circle(
+                when (state) {
+                    State.RECORDING -> COLOR_RECORDING
+                    State.TRANSCRIBING -> COLOR_BUSY
+                    State.IDLE -> COLOR_IDLE
+                }
+            )
+        }
+
+        try {
+            wm.updateViewLayout(view, lp)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to resize overlay", e)
+        }
     }
 
     private fun animateOverlayIn() {
@@ -274,7 +385,7 @@ class WhisperAccessibilityService : AccessibilityService() {
                 view.alpha = 0f
             }
             setTouchable(true)
-            val target = if (state == State.IDLE) ALPHA_IDLE else ALPHA_ACTIVE
+            val target = if (state == State.IDLE) idleAlpha() else ALPHA_ACTIVE
             view.animate()
                 .alpha(target)
                 .setDuration(FADE_IN_MS)
@@ -322,9 +433,9 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     private fun showOverlay() {
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager
-        val buttonSize = (BTN_DP * dp).toInt()
-        val ringSize = (RING_DP * dp).toInt()
-        val pad = (PAD_DP * dp).toInt()
+        val buttonSize = (configuredBubbleDp() * dp).toInt()
+        val ringSize = ((configuredBubbleDp() + 12) * dp).toInt()
+        val pad = ((configuredBubbleDp() * 10f / 44f) * dp).toInt().coerceAtLeast(4)
         val margin = (MARGIN_DP * dp).toInt()
 
         val ring = ProgressBar(this).apply {
@@ -357,13 +468,13 @@ class WhisperAccessibilityService : AccessibilityService() {
 
         val params = WindowManager.LayoutParams(
             ringSize, ringSize,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            overlayType(),
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = screenW - ringSize - margin
-            y = screenH / 2 - ringSize / 2
+            x = prefs().getInt("overlay_x", screenW - ringSize - margin)
+            y = prefs().getInt("overlay_y", screenH / 2 - ringSize / 2)
         }
 
         var startX = 0; var startY = 0
@@ -391,8 +502,10 @@ class WhisperAccessibilityService : AccessibilityService() {
                     if (moved < TAP_THRESHOLD_DP * dp) {
                         onTap()
                     } else {
-                        params.x = if (params.x + ringSize / 2 > screenW / 2)
-                            screenW - ringSize - margin else margin
+                        val currentWidth = params.width
+                        params.x = if (params.x + currentWidth / 2 > screenW / 2)
+                            screenW - currentWidth - margin else margin
+                        prefs().edit().putInt("overlay_x", params.x).putInt("overlay_y", params.y).apply()
                         wm.updateViewLayout(v, params)
                         feedbackLayoutParams?.let {
                             positionFeedback(it, params)
@@ -417,7 +530,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         val feedbackParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            overlayType(),
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
             PixelFormat.TRANSLUCENT
         ).apply {
@@ -485,7 +598,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         handler.post {
             overlayView?.animate()?.cancel()
             overlayView?.animate()
-                ?.alpha(if (active) ALPHA_ACTIVE else ALPHA_IDLE)
+                ?.alpha(if (active) ALPHA_ACTIVE else idleAlpha())
                 ?.setDuration(ALPHA_FADE_MS)
                 ?.start()
         }
