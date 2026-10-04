@@ -80,6 +80,8 @@ class WhisperAccessibilityService : AccessibilityService() {
     private var overlayView: FrameLayout? = null
     private var overlayShown = false
     private var overlayMinimized = false
+    private var dotExpired = false
+    private var dotHideScheduled = false
 
     // Two independent signals feed overlay visibility (OR'd together): an
     // accessibility-tree focus check (event-driven AND polled as a failsafe,
@@ -101,6 +103,16 @@ class WhisperAccessibilityService : AccessibilityService() {
         feedbackView?.animate()?.alpha(0f)?.setDuration(180)?.withEndAction {
             feedbackView?.visibility = View.GONE
         }?.start()
+    }
+
+    private val hideDot = Runnable {
+        dotHideScheduled = false
+        val inactive = state == State.IDLE && !accessibilityFocusSignal && !imeVisibleSignal
+        if (inactive && prefs().getBoolean("minimize_to_dot", false)) {
+            dotExpired = true
+            if (overlayShown) animateOverlayOut()
+            overlayShown = false
+        }
     }
     private val focusPoller = object : Runnable {
         override fun run() {
@@ -144,6 +156,7 @@ class WhisperAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         instance = null
         handler.removeCallbacks(focusPoller)
+        handler.removeCallbacks(hideDot)
         try {
             stopForeground(STOP_FOREGROUND_REMOVE)
         } catch (e: Exception) {
@@ -255,6 +268,9 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     private fun updateOverlayVisibility() {
         if (!masterEnabled()) {
+            handler.removeCallbacks(hideDot)
+            dotHideScheduled = false
+            dotExpired = false
             if (overlayShown) animateOverlayOut()
             overlayShown = false
             return
@@ -262,11 +278,25 @@ class WhisperAccessibilityService : AccessibilityService() {
 
         val activeContext = accessibilityFocusSignal || imeVisibleSignal || state != State.IDLE
         val minimizeToDot = prefs().getBoolean("minimize_to_dot", false)
+        val dotTimeoutSeconds = prefs().getInt("dot_timeout_seconds", 3).coerceIn(0, 10)
 
         when {
-            activeContext -> showOverlayState(minimized = false)
-            minimizeToDot -> showOverlayState(minimized = true)
+            activeContext -> {
+                handler.removeCallbacks(hideDot)
+                dotHideScheduled = false
+                dotExpired = false
+                showOverlayState(minimized = false)
+            }
+            minimizeToDot && !dotExpired -> {
+                showOverlayState(minimized = true)
+                if (dotTimeoutSeconds > 0 && !dotHideScheduled) {
+                    dotHideScheduled = true
+                    handler.postDelayed(hideDot, dotTimeoutSeconds * 1000L)
+                }
+            }
             else -> {
+                handler.removeCallbacks(hideDot)
+                dotHideScheduled = false
                 if (overlayShown) animateOverlayOut()
                 overlayShown = false
             }
@@ -295,13 +325,13 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     fun refreshOverlaySettings() {
         handler.post {
-            // Ordinary appearance changes (dot/bubble size, opacity, minimize mode)
-            // must never tear down the accessibility overlay. Rebuilding the window
-            // while Accessibility is dispatching events can create an event storm
-            // on some Samsung/One UI builds.
+            // Appearance changes stay inside the already-attached host window.
             if (overlayView == null || overlayView?.isAttachedToWindow != true) {
                 ensureOverlayAttached()
             }
+            handler.removeCallbacks(hideDot)
+            dotHideScheduled = false
+            dotExpired = false
             val activeContext = accessibilityFocusSignal || imeVisibleSignal || state != State.IDLE
             val minimized = !activeContext && prefs().getBoolean("minimize_to_dot", false)
             applyOverlayPresentation(minimized)
