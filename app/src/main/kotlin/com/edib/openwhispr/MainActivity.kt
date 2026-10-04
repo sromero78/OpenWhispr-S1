@@ -324,11 +324,11 @@ class MainActivity : AppCompatActivity() {
             if (systemOverlaySwitch.isChecked) {
                 prefs().edit().putBoolean("system_overlay_enabled", false).apply()
                 systemOverlaySwitch.isChecked = false
-                WhisperAccessibilityService.instance?.refreshOverlaySettings()
+                WhisperAccessibilityService.instance?.rebuildOverlayForTypeChange()
             } else if (Settings.canDrawOverlays(this)) {
                 prefs().edit().putBoolean("system_overlay_enabled", true).apply()
                 systemOverlaySwitch.isChecked = true
-                WhisperAccessibilityService.instance?.refreshOverlaySettings()
+                WhisperAccessibilityService.instance?.rebuildOverlayForTypeChange()
             } else {
                 prefs().edit().putBoolean("system_overlay_enabled", true).apply()
                 try {
@@ -888,7 +888,6 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("Save") { _, _ ->
                 prefs().edit().putInt(prefKey, min + seek.progress).apply()
                 WhisperAccessibilityService.instance?.refreshOverlaySettings()
-                recreate()
             }
             .setNegativeButton("Cancel", null)
             .show()
