@@ -51,6 +51,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         private const val TAP_THRESHOLD_DP = 10
         private const val RING_DP = 56
         private const val DOT_TOUCH_DP = 32
+        private const val OVERLAY_HOST_DP = 84
         private const val FEEDBACK_OFFSET_DP = 64
 
         private const val ALPHA_IDLE = 0.7f
@@ -359,18 +360,12 @@ class WhisperAccessibilityService : AccessibilityService() {
     }
 
     private fun applyOverlayPresentation(minimized: Boolean) {
-        val wm = getSystemService(WINDOW_SERVICE) as WindowManager
-        val view = overlayView ?: return
-        val lp = layoutParams ?: return
         val img = button ?: return
         val ring = spinner
 
         overlayMinimized = minimized
         if (minimized && state == State.IDLE) {
             val dotPx = (configuredDotDp() * dp).toInt()
-            val touchPx = (DOT_TOUCH_DP * dp).toInt()
-            lp.width = touchPx
-            lp.height = touchPx
             img.layoutParams = FrameLayout.LayoutParams(dotPx, dotPx, Gravity.CENTER)
             img.setPadding(0, 0, 0, 0)
             img.setImageDrawable(null)
@@ -380,9 +375,8 @@ class WhisperAccessibilityService : AccessibilityService() {
             val buttonPx = (configuredBubbleDp() * dp).toInt()
             val ringPx = ((configuredBubbleDp() + 12) * dp).toInt()
             val pad = ((configuredBubbleDp() * 10f / 44f) * dp).toInt().coerceAtLeast(4)
-            lp.width = ringPx
-            lp.height = ringPx
             img.layoutParams = FrameLayout.LayoutParams(buttonPx, buttonPx, Gravity.CENTER)
+            ring?.layoutParams = FrameLayout.LayoutParams(ringPx, ringPx, Gravity.CENTER)
             img.setPadding(pad, pad, pad, pad)
             img.setImageResource(if (state == State.IDLE) R.drawable.ic_app_logo else R.drawable.ic_mic)
             img.background = circle(
@@ -392,12 +386,6 @@ class WhisperAccessibilityService : AccessibilityService() {
                     State.IDLE -> COLOR_IDLE
                 }
             )
-        }
-
-        try {
-            wm.updateViewLayout(view, lp)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to resize overlay", e)
         }
     }
 
@@ -459,7 +447,7 @@ class WhisperAccessibilityService : AccessibilityService() {
     private fun showOverlay() {
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager
         val buttonSize = (configuredBubbleDp() * dp).toInt()
-        val ringSize = ((configuredBubbleDp() + 12) * dp).toInt()
+        val ringSize = (OVERLAY_HOST_DP * dp).toInt()
         val pad = ((configuredBubbleDp() * 10f / 44f) * dp).toInt().coerceAtLeast(4)
         val margin = (MARGIN_DP * dp).toInt()
 
