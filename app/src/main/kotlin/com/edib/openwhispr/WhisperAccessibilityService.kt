@@ -294,14 +294,30 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     fun refreshOverlaySettings() {
         handler.post {
+            // Ordinary appearance changes (dot/bubble size, opacity, minimize mode)
+            // must never tear down the accessibility overlay. Rebuilding the window
+            // while Accessibility is dispatching events can create an event storm
+            // on some Samsung/One UI builds.
+            if (overlayView == null || overlayView?.isAttachedToWindow != true) {
+                ensureOverlayAttached()
+            }
+            val activeContext = accessibilityFocusSignal || imeVisibleSignal || state != State.IDLE
+            val minimized = !activeContext && prefs().getBoolean("minimize_to_dot", false)
+            applyOverlayPresentation(minimized)
+            updateOverlayVisibility()
+        }
+    }
+
+    fun rebuildOverlayForTypeChange() {
+        handler.post {
             try {
                 removeOverlay()
             } catch (e: Exception) {
-                Log.w(TAG, "Overlay removal during settings refresh failed", e)
+                Log.w(TAG, "Overlay removal during type change failed", e)
             }
             overlayShown = false
             overlayMinimized = false
-            ensureOverlayAttached(force = true)
+            ensureOverlayAttached()
             updateOverlayVisibility()
         }
     }
