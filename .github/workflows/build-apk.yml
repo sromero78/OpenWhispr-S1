@@ -1,9 +1,15 @@
-# Modified in OpenWispr-S1 from EdiBianco/OpenWhispr. See ATTRIBUTION.md.\nname: Build APK
-# Canary channel: experimental builds
+# Modified in OpenWispr-S1 from EdiBianco/OpenWhispr. See ATTRIBUTION.md.
+name: Build APK
 
 on:
   push:
     branches: [ canary ]
+    paths-ignore:
+      - 'README.md'
+      - 'ATTRIBUTION.md'
+      - 'LICENSE'
+      - 'PRIVACY.md'
+      - 'docs/**'
   workflow_dispatch: {}
 
 permissions:
@@ -43,6 +49,17 @@ jobs:
           VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Check whether release already exists
+        id: release
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+            echo "Release v$VERSION already exists; build will be validated but not republished."
+          else
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Rename APK with version
         run: |
           mkdir -p dist
@@ -55,6 +72,7 @@ jobs:
           path: dist/*.apk
 
       - name: Extract changelog for this version
+        if: steps.release.outputs.needed == 'true'
         id: changelog
         run: |
           NOTES=$(awk -v ver="${{ steps.version.outputs.version }}" '
@@ -69,6 +87,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Publish APK to GitHub Release
+        if: steps.release.outputs.needed == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}
