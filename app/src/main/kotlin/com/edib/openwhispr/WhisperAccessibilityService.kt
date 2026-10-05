@@ -976,9 +976,6 @@ class WhisperAccessibilityService : AccessibilityService() {
      * instead of inserting at the cursor/selection -- used by voice
      * commands, which transform the whole field rather than append to it. */
     private fun replaceFieldText(text: String) {
-        val clip = ClipData.newPlainText("openwhispr", text)
-        (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(clip)
-
         val candidates = findInjectionCandidates()
         var replaced = false
         try {
@@ -992,11 +989,14 @@ class WhisperAccessibilityService : AccessibilityService() {
             candidates.forEach { it.recycle() }
         }
 
-        Log.i(TAG, if (replaced) "Command replace succeeded" else "Command replace failed; clipboard fallback only")
-        showFeedback(
-            if (replaced) "Command applied" else "Couldn't replace field -- copied to clipboard",
-            if (replaced) 2000 else 3000
-        )
+        if (replaced) {
+            Log.i(TAG, "Command replace succeeded without clipboard")
+            showFeedback("Command applied", 2000)
+        } else {
+            copyToClipboard(text)
+            Log.i(TAG, "Command replace failed; clipboard fallback retained")
+            showFeedback("Couldn't replace field -- copied to clipboard", 3000)
+        }
     }
 
     private fun tryReplaceEntireNode(node: AccessibilityNodeInfo, text: String): Boolean {
@@ -1033,29 +1033,62 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     private fun injectText(
         text: String,
-        feedback: String? = "Copied to clipboard",
+        feedback: String? = null,
         feedbackDurationMs: Long = 2000
     ) {
-        val clip = ClipData.newPlainText("openwhispr", text)
-        (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(clip)
-        feedback?.let { showFeedback(it, feedbackDurationMs) }
-
         val candidates = findInjectionCandidates()
         Log.i(TAG, "Injecting text into ${candidates.size} candidate node(s)")
 
-        var injected = false
+        // First try ACTION_SET_TEXT without touching the clipboard at all.
+        // This is the normal path for WhatsApp, ChatGPT and standard EditTexts,
+        // and prevents Gboard from surfacing dictated text in its clipboard bar.
+        var injectedDirectly = false
         try {
             for (candidate in candidates) {
-                if (tryInjectIntoNode(candidate, text)) {
-                    injected = true
+                if (tryDirectInsertIntoNode(candidate, text)) {
+                    injectedDirectly = true
                     break
                 }
+            }
+
+            if (injectedDirectly) {
+                Log.i(TAG, "Text injected directly without clipboard")
+                feedback?.let { showFeedback(it.replace("copied to clipboard", "inserted"), feedbackDurationMs) }
+                return
+            }
+
+            // Compatibility fallback for unusual editors/terminal-like fields:
+            // populate clipboard only when direct insertion could not work.
+            copyToClipboard(text)
+
+            var pasted = false
+            for (candidate in candidates) {
+                if (tryPasteIntoNode(candidate)) {
+                    pasted = true
+                    break
+                }
+            }
+
+            if (pasted) {
+                clearClipboard()
+                Log.i(TAG, "Clipboard paste fallback succeeded; clipboard cleared")
+                feedback?.let { showFeedback(it.replace("copied to clipboard", "inserted"), feedbackDurationMs) }
+            } else {
+                Log.i(TAG, "No injection action succeeded; clipboard fallback retained")
+                showFeedback(feedback ?: "Couldn't insert -- copied to clipboard", feedbackDurationMs)
             }
         } finally {
             candidates.forEach { it.recycle() }
         }
+    }
 
-        Log.i(TAG, if (injected) "Text injection action reported success" else "No injection action succeeded; clipboard fallback only")
+    private fun copyToClipboard(text: String) {
+        val clip = ClipData.newPlainText("openwhispr", text)
+        (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(clip)
+    }
+
+    private fun clearClipboard() {
+        (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).clearPrimaryClip()
     }
 
     private fun findInjectionCandidates(): List<AccessibilityNodeInfo> {
@@ -1129,20 +1162,9 @@ class WhisperAccessibilityService : AccessibilityService() {
         return score
     }
 
-    private fun tryInjectIntoNode(node: AccessibilityNodeInfo, text: String): Boolean {
-        logNode("Trying node", node)
-
+    private fun tryDirectInsertIntoNode(node: AccessibilityNodeInfo, text: String): Boolean {
+        logNode("Trying direct insert on node", node)
         node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
-
-        findCustomPasteAction(node)?.let { action ->
-            val ok = node.performAction(action.id)
-            Log.i(TAG, "Custom action '${action.label}' (${action.id}) => $ok")
-            if (ok) return true
-        }
-
-        val pasteOk = node.performAction(AccessibilityNodeInfo.ACTION_PASTE)
-        Log.i(TAG, "ACTION_PASTE => $pasteOk")
-        if (pasteOk) return true
 
         if (node.isEditable || node.className?.toString()?.contains("EditText") == true) {
             val current = node.text?.toString().orEmpty()
@@ -1158,11 +1180,26 @@ class WhisperAccessibilityService : AccessibilityService() {
                 )
             }
             val setTextOk = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-            Log.i(TAG, "ACTION_SET_TEXT => $setTextOk")
+            Log.i(TAG, "Direct ACTION_SET_TEXT => $setTextOk")
             if (setTextOk) return true
         }
 
         return false
+    }
+
+    private fun tryPasteIntoNode(node: AccessibilityNodeInfo): Boolean {
+        logNode("Trying clipboard fallback on node", node)
+        node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+
+        findCustomPasteAction(node)?.let { action ->
+            val ok = node.performAction(action.id)
+            Log.i(TAG, "Custom action '${action.label}' (${action.id}) => $ok")
+            if (ok) return true
+        }
+
+        val pasteOk = node.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+        Log.i(TAG, "ACTION_PASTE => $pasteOk")
+        return pasteOk
     }
 
     private fun findCustomPasteAction(node: AccessibilityNodeInfo): AccessibilityNodeInfo.AccessibilityAction? =
