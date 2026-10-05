@@ -25,8 +25,8 @@ android {
         applicationId = "com.edib.openwhispr.canary"
         minSdk = 30
         targetSdk = 35
-        versionCode = 37
-        versionName = "3.10.0-canary.3"
+        versionCode = 38
+        versionName = "3.10.0-canary.4"
 
         ndk { abiFilters += "arm64-v8a" }
     }
