@@ -36,3 +36,6 @@ All work here remains subject to REGRESSION_TESTS.md. In particular:
 - do not disturb the fixed-size overlay host that eliminated Samsung freezes.
 
 Canary 4 itself remains unchanged during its stability test.
+
+## Build validation
+Canary Next changes are compiled in CI before promotion to the public Canary branch.
