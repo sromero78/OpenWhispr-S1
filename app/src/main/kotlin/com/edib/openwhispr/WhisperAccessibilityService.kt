@@ -1195,12 +1195,29 @@ class WhisperAccessibilityService : AccessibilityService() {
                 rawStart >= 0 && rawEnd >= 0 &&
                 rawStart <= current.length && rawEnd <= current.length
 
-            // If an editor exposes non-empty accessibility text but no valid
-            // selection range, that text may actually be a placeholder/hint.
-            // Do not guess "cursor at end": fall back to the normal paste path
-            // so we never prepend phantom UI labels such as WhatsApp's "Mensaje".
+            // Some editors expose placeholder text through node.text while
+            // reporting no usable selection range. In that state, appending to
+            // node.text is unsafe (it produced "Mensaje..." in WhatsApp), but
+            // falling straight to the clipboard is unnecessarily disruptive.
+            //
+            // First try a direct full-field ACTION_SET_TEXT with only the
+            // dictated text. This keeps the clipboard untouched and replaces
+            // phantom accessibility text. Real typed text in standard editors
+            // normally comes with a valid selection and therefore uses the
+            // cursor-preserving branch below.
             if (current.isNotEmpty() && !hasValidSelection) {
-                Log.i(TAG, "Direct insert skipped: non-empty node text with invalid selection")
+                val directArgs = Bundle().apply {
+                    putCharSequence(
+                        AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
+                        text
+                    )
+                }
+                val directReplaceOk =
+                    node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, directArgs)
+                Log.i(TAG, "Direct ACTION_SET_TEXT replacing uncertain editor text => $directReplaceOk")
+                if (directReplaceOk) return true
+
+                Log.i(TAG, "Uncertain editor direct replace failed; allowing clipboard fallback")
                 return false
             }
 
