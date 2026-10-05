@@ -877,7 +877,7 @@ class WhisperAccessibilityService : AccessibilityService() {
             } catch (e: Exception) {
                 Log.e(TAG, "Local transcription failed", e)
                 handler.post {
-                    toast("Local error: ${e.message}")
+                    toast("Error local: ${e.message}")
                     goIdle()
                 }
             }
@@ -887,14 +887,14 @@ class WhisperAccessibilityService : AccessibilityService() {
     private fun transcribeApi(pcm: ByteArray) {
         val wav = WavWriter.encode(pcm)
         val apiKey = prefs().getString("api_key", "") ?: ""
-        if (apiKey.isBlank()) { reset("Set API key in OpenWispr app"); return }
+        if (apiKey.isBlank()) { reset("Configura la clave API en OpenWispr"); return }
 
         TranscriberClient.transcribe(wav, apiKey) { result ->
             if (result.text != null && result.text.isNotBlank()) {
                 handleTranscriptionResult(result.text)
             } else {
                 handler.post {
-                    toast("Error: ${result.error ?: "empty transcript"}")
+                    toast("Error: ${result.error ?: "transcripción vacía"}")
                     goIdle()
                 }
             }
@@ -970,7 +970,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         }
     }
 
-    /** Handles a "Whisper Command" voice command: reads whatever's in the
+    /** Handles a "Comando Whisper" voice command: reads whatever's in the
      * focused field (if anything), sends it plus the spoken instruction to
      * CommandProcessor's whitelisted-transformation prompt, and replaces the
      * field's entire content with the result. */
@@ -1063,7 +1063,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         } else {
             copyToClipboard(text)
             Log.i(TAG, "Command replace failed; clipboard fallback retained")
-            showFeedback("Couldn't replace field -- copied to clipboard", 3000)
+            showFeedback("No se pudo sustituir el campo — texto copiado al portapapeles", 3000)
         }
     }
 
@@ -1123,7 +1123,7 @@ class WhisperAccessibilityService : AccessibilityService() {
 
             if (injectedDirectly) {
                 Log.i(TAG, "Text injected directly without clipboard")
-                feedback?.let { showFeedback(it.replace("copied to clipboard", "inserted"), feedbackDurationMs) }
+                feedback?.let { showFeedback(it.replace("copiado al portapapeles", "insertado"), feedbackDurationMs) }
                 return
             }
 
@@ -1142,10 +1142,10 @@ class WhisperAccessibilityService : AccessibilityService() {
             if (pasted) {
                 clearClipboard()
                 Log.i(TAG, "Clipboard paste fallback succeeded; clipboard cleared")
-                feedback?.let { showFeedback(it.replace("copied to clipboard", "inserted"), feedbackDurationMs) }
+                feedback?.let { showFeedback(it.replace("copiado al portapapeles", "insertado"), feedbackDurationMs) }
             } else {
                 Log.i(TAG, "No injection action succeeded; clipboard fallback retained")
-                showFeedback(feedback ?: "Couldn't insert -- copied to clipboard", feedbackDurationMs)
+                showFeedback(feedback ?: "No se pudo insertar — texto copiado al portapapeles", feedbackDurationMs)
             }
         } finally {
             candidates.forEach { it.recycle() }
