@@ -2,193 +2,67 @@
   <img src="docs/logo.svg" width="128" height="128" alt="OpenWispr Logo">
 </p>
 
-# OpenWispr
+# OpenWispr-S1
 
-Free, open-source, on-device push-to-talk dictation for Android — a free alternative to [Wispr Flow](https://wisprflow.ai).
+OpenWispr-S1 is an **independent derivative project based on [OpenWhispr by EdiBianco](https://github.com/EdiBianco/OpenWhispr)**, distributed under the Apache License 2.0.
 
-Speak naturally into any app and OpenWispr turns your raw speech into clear, polished text: filler words removed, punctuation and formatting fixed automatically, then inserted straight into whatever field you're already typing in. Tap the floating button, speak, tap again — done.
+This repository is not affiliated with or endorsed by the original maintainer. If you want the history, rationale and documentation of the original project, please visit the upstream repository above.
 
-It's completely free to run. Cloud transcription and cleanup use your own [Groq](https://groq.com) API key, and Groq's free tier is generous enough for everyday dictation without paying anything. Prefer to keep everything on-device? Local transcription needs no API key or internet connection at all.
+## Our story
 
-It supports:
+This fork began as a personal experiment to make Android push-to-talk dictation fit a very specific daily workflow: tap, speak, get clean text into the active field, and get out of the way.
 
-- **Local on-device transcription** with sherpa-onnx — no API key, no internet required
-- **Cloud transcription** with Groq Whisper — free API key, fast, no local model download
-- **Optional AI cleanup** with Groq — removes filler words, fixes punctuation and grammar, formats emails
+The project now focuses on low-friction dictation, predictable overlay behaviour, direct text insertion when Android exposes a suitable editable field, careful fallback behaviour, and a deliberately conservative release process.
 
-## Features
+Development is tested heavily on Samsung / One UI because that is the primary device environment used for this fork. That is simply our main test platform; OpenWispr-S1 is not presented as an official Samsung or Android component.
 
-- **Two transcription modes**: cloud transcription via Groq Whisper (`whisper-large-v3`), or fully local, on-device transcription via sherpa-onnx — no API key, no internet, no data leaving the phone
-- **Optional AI cleanup**: Groq (`openai/gpt-oss-120b`) removes filler words, fixes punctuation and grammar, and formats emails, with a stricter prompt that handles self-corrections and preserves your intent instead of acting on it as a command — plus room to add your own custom instructions on top
-- **Free Groq API key**: the settings screen asks for a free [Groq API key](https://console.groq.com/keys) (`gsk_...`), with a direct link to get one
-- **Voice commands**: say "Whisper Command" at the start of a recording to switch into command mode instead of normal dictation — see [Voice commands](#voice-commands) below
-- **Multilingual**: works across languages for both transcription and cleanup
-- **Smart overlay visibility**: the mic overlay shows only while a text field is focused, fading in/out, using three redundant signals (accessibility focus events, a periodic focus poll, and system keyboard visibility) so it still shows up in apps with non-standard text composers (e.g. WhatsApp, Telegram)
-- **Stability**: hardened against crashes and killed background services, with a toggle to pause dictation without touching the Accessibility permission
-- **Battery-aware**: detects when Android might shut the background service down to save power and offers a one-tap fix, so the overlay stays available
-- **In-app updates**: the app checks this repo's GitHub Releases on open (plus a manual "Check for updates" row in Settings) and installs updates entirely in-app — it downloads the .apk itself and hands it straight to the system installer, no browser involved, with a short "what's new" summary for each release (see [CHANGELOG.md](CHANGELOG.md))
-- **Organized settings**: Status / Dictation / Settings tabs, with a collapsible setup checklist (Audio, Accessibility, Battery) that folds away once everything's green
-- **Restricted settings help**: on Android 13+, sideloaded apps have the Accessibility toggle blocked by default with no explanation — the app walks you through unlocking it before sending you to the system screen
+## What this fork currently adds
 
-## Why I built this
+- Refined floating bubble / dot behaviour.
+- Configurable bubble size, dot size, transparency and dot timeout.
+- Direct accessibility text insertion first, with clipboard only as a compatibility fallback.
+- Additional recovery and overlay controls.
+- Separate release channels for **Stable**, **Beta** and **Canary** development.
+- Ongoing UX and reliability work.
 
-After trying [Freeflow](https://github.com/zachlatta/freeflow) on macOS, I went looking for something with the same effectiveness and usability on Android — and couldn't find it. So I decided to build it myself, exactly the way I wanted it, starting from a codebase simple enough to actually customize.
+The underlying transcription and post-processing architecture comes from OpenWhispr. Please see the upstream project for its broader feature history.
 
-That codebase was [kafkasl/phone-whisper](https://github.com/kafkasl/phone-whisper), originally built around OpenAI. This fork switches cloud transcription and cleanup to Groq, adds improved processing, multilingual support, and command mode, and layers on a round of reliability and UX work on top.
+## Release channels
 
-## Install
+- **Stable**: the current proven build on `main`.
+- **Beta**: changes that have passed initial testing and are candidates for Stable.
+- **Canary**: experimental work and early validation.
 
-### Easiest: download the APK
-
-Grab the latest debug APK from the [Releases page](https://github.com/EdiBianco/OpenWhispr/releases) on this fork. A [GitHub Actions workflow](.github/workflows/build-apk.yml) builds and publishes a new version-tagged release automatically on every push to `main`.
-
-Open it on your phone, install it, then launch the app once to finish setup.
-
-### Build from source
-
-Requires JDK 17 and Android SDK.
-
-```bash
-git clone https://github.com/EdiBianco/OpenWhispr.git && cd OpenWhispr
-make build
-```
-
-APK output:
-
-```bash
-app/build/outputs/apk/debug/app-debug.apk
-```
-
-If you use ADB:
-
-```bash
-make adb-install
-```
-
-## How it works
-
-1. A small overlay button floats on screen
-2. Tap once to start recording
-3. Tap again to stop
-4. Audio is transcribed locally or in the cloud
-5. The text is inserted into the focused text field
-6. If insertion fails, the text is copied to the clipboard
-
-## Voice commands
-
-Say **"Whisper Command"** at the start of a recording, followed by one of five whitelisted operations, and OpenWispr applies it to whatever's already in the focused field (or to text you dictate right after the command, if you give it fresh content):
-
-- `"Whisper Command, summarize this in two sentences"` -- summarize, with an optional length or limit
-- `"Whisper Command, enhance the flow"` -- rewrite for smoother, more natural flow without changing meaning
-- `"Whisper Command, translate to Italian"` -- translate to the named language
-- `"Whisper Command, make this more formal"` -- change tone (formal, casual, professional, friendly, ...)
-- `"Whisper Command, turn this into a list"` -- reformat as a bulleted or numbered list
-
-You can chain more than one in the same command, and they're applied in the order you say them -- e.g. `"Whisper Command, translate to Italian and turn it into a list"` translates first, then lists the result.
-
-Anything outside these five is deliberately refused rather than attempted -- the same strict-contract approach as the default cleanup prompt, just inverted: this mode exists to act on instructions, but only these ones.
-
-Off by default -- enable it under **Voice Commands** in the app, where you can also change the trigger phrase and see the same examples list.
-
-## Setup
-
-### First-time setup
-
-1. Open **OpenWispr*(*
-2. Grant the **audio recording** permission
-3. Enable the **Accessibility Service**
-4. Choose your transcription mode:
-   - **Local**: download a model in the app
-   - **Cloud**: paste your free [Groq API key](https://console.groq.com/keys) — the app links straight to that page when you tap to set the key
-5. When prompted, allow OpenWispr to run **unrestricted by battery optimization** — otherwise Android may shut the background service down and the overlay will disappear until you reopen the app
-
-Once setup is done, the floating button is ready.
-
-## Keeping the background service alive
-
-Android is aggressive about killing background services to save battery, and an Accessibility Service is no exception. OpenWispr does a few things to stay running:
-
-- Runs as a **foreground service** with a persistent, silent, minimum-priority notification — the standard way to keep a background service alive when the app is swiped away in the recent-apps screen
-- Prompts you to **exempt the app from battery optimization** (`Settings → Battery optimization` in the app, or the OS dialog it opens) the first time it detects the Accessibility Service is on but the exemption isn't granted
-- Defensive error handling around accessibility events and local-model loading, so a single bad event or model can't crash the whole service process and force you to clear app storage and re-grant permissions
-
-A **"Background service"** switch in the app lets you pause dictation (hide the overlay, stop reacting to taps) without revoking the Accessibility permission — handy if you want to quiet it temporarily instead of walking through Android's accessibility settings.
-
-Some phone manufacturers (Samsung, Xiaomi, OnePlus, and others) layer their own battery/app-sleep managers on top of stock Android and may still kill the service even after you grant the exemption above. If the overlay keeps disappearing, check your phone's own battery/app management settings for an "autostart" or "keep in background" option for OpenWispr.
-
-## Why does it need Accessibility?
-
-OpenWispr uses Android Accessibility Service for one narrow reason: to insert dictated text into the currently focused text field across apps.
-
-It does **not** replace your keyboard. It does **not** run background automation. It only acts after you explicitly tap the overlay button.
+The Android package IDs are intentionally separate for the three channels so they can coexist on one device. Only one OpenWispr accessibility service should be enabled at a time.
 
 ## Privacy
 
-OpenWispr supports two modes:
+OpenWispr-S1 can use local transcription or cloud services depending on configuration.
 
-- **Local mode**: audio stays on-device
-- **Cloud mode**: audio is sent directly from your device to Groq's transcription API
-- **Optional cleanup**: transcript text is sent directly from your device to Groq's chat API
+When Groq cloud transcription or cleanup is enabled, audio and/or transcript text is sent directly from the device to Groq using the user's own API key. This project does not operate a separate backend.
 
-I don't run a backend for this app. In cloud mode, requests go straight from your phone to Groq using your own API key.
+See [PRIVACY.md](PRIVACY.md) for the inherited privacy documentation and review your own configuration before using cloud features with sensitive material.
 
-Full policy: [PRIVACY.md](PRIVACY.md)
+## Installation
 
-## Local models
+Prebuilt test APKs are published in this repository's [Releases](https://github.com/sromero78/OpenWhispr-S1/releases).
 
-Models are stored in app storage under:
+These builds are development/test builds. Production distribution would require a separate production signing and release process.
 
-```bash
-/data/data/com.edib.openwhispr/files/models/
-```
+## Build from source
 
-Current catalog:
-
-| Model | Size | Notes |
-|---|---:|---|
-| Parakeet 110M | 100 MB | Best default |
-| Whisper Base | 199 MB | Solid baseline |
-| Parakeet 0.6B | 465 MB | Best quality |
-| Moonshine Tiny | 103 MB | Fastest |
-
-The app downloads and extracts models directly from the sherpa-onnx release archives.
-
-## Development
+Requires JDK 17 and the Android SDK.
 
 ```bash
-make build       # build debug APK
-make test        # run unit tests
-make adb-install # build + install via ADB
-make clean       # clean build artifacts
+git clone https://github.com/sromero78/OpenWhispr-S1.git
+cd OpenWhispr-S1
+./gradlew assembleDebug
 ```
 
-## App compatibility
+## Attribution and license
 
-OpenWispr works best in apps that use standard Android text fields.
-Some apps use custom text surfaces or terminal-style views, which may not support direct accessibility paste.
-When insertion is not possible, OpenWispr falls back to copying the transcript to the clipboard.
+OpenWispr-S1 is derived from [EdiBianco/OpenWhispr](https://github.com/EdiBianco/OpenWhispr), which in turn documents its lineage from [kafkasl/phone-whisper](https://github.com/kafkasl/phone-whisper).
 
-### Termux
+See [ATTRIBUTION.md](ATTRIBUTION.md) for the attribution statement and modification notice.
 
-Termux's main terminal area is not a standard Android text field, so direct insertion may not work there.
-
-To use OpenWispr in Termux:
-
-1. Focus Termux
-2. Swipe the extra keys row (`ESC`, `CTRL`, `ALT`, arrows, etc.) left or right
-3. Switch to Termux's native text input box
-4. Dictate there
-
-Once text is inserted into the native input box, Termux sends it to the terminal normally.
-
-## Current limitations
-
-- Accessibility permission is required for cross-app insertion
-- Some apps may block paste or text injection
-- Some apps use custom input surfaces instead of standard Android text fields
-- Local models are large
-- Cloud mode requires your own Groq API key
-
-## License
-
-Personal project. Do whatever you want with it.
+The original Apache License 2.0 is preserved in [LICENSE](LICENSE). Modified source files in this fork carry a modification notice as required by the license.
