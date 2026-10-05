@@ -966,10 +966,30 @@ class WhisperAccessibilityService : AccessibilityService() {
     private fun currentFieldText(): String {
         val candidates = findInjectionCandidates()
         return try {
-            candidates.firstOrNull()?.text?.toString().orEmpty()
+            candidates.firstOrNull()?.let(::editableTextContent).orEmpty()
         } finally {
             candidates.forEach { it.recycle() }
         }
+    }
+
+    /**
+     * Returns only real user-entered content from an editable node.
+     *
+     * Some editors expose their placeholder/hint through node.text while the
+     * field is actually empty. WhatsApp group composers can expose "Mensaje"
+     * this way. Treating that hint as existing text caused direct insertion
+     * to prepend it to the dictated transcript.
+     */
+    private fun editableTextContent(node: AccessibilityNodeInfo): String {
+        val raw = node.text?.toString().orEmpty()
+        if (node.isShowingHintText) return ""
+
+        val hint = node.hintText?.toString().orEmpty()
+        if (hint.isNotEmpty() && raw == hint && node.textSelectionStart <= 0 && node.textSelectionEnd <= 0) {
+            return ""
+        }
+
+        return raw
     }
 
     /** Like injectText, but replaces the focused field's entire content
@@ -1167,9 +1187,9 @@ class WhisperAccessibilityService : AccessibilityService() {
         node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
 
         if (node.isEditable || node.className?.toString()?.contains("EditText") == true) {
-            val current = node.text?.toString().orEmpty()
-            val start = if (node.textSelectionStart >= 0) node.textSelectionStart else current.length
-            val end = if (node.textSelectionEnd >= 0) node.textSelectionEnd else start
+            val current = editableTextContent(node)
+            val start = if (node.textSelectionStart >= 0 && node.textSelectionStart <= current.length) node.textSelectionStart else current.length
+            val end = if (node.textSelectionEnd >= 0 && node.textSelectionEnd <= current.length) node.textSelectionEnd else start
             val replacementStart = minOf(start, end)
             val replacementEnd = maxOf(start, end)
             val updated = current.replaceRange(replacementStart, replacementEnd, text)
