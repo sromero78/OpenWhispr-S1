@@ -1188,8 +1188,23 @@ class WhisperAccessibilityService : AccessibilityService() {
 
         if (node.isEditable || node.className?.toString()?.contains("EditText") == true) {
             val current = editableTextContent(node)
-            val start = if (node.textSelectionStart >= 0 && node.textSelectionStart <= current.length) node.textSelectionStart else current.length
-            val end = if (node.textSelectionEnd >= 0 && node.textSelectionEnd <= current.length) node.textSelectionEnd else start
+            val rawStart = node.textSelectionStart
+            val rawEnd = node.textSelectionEnd
+            val hasValidSelection =
+                rawStart >= 0 && rawEnd >= 0 &&
+                rawStart <= current.length && rawEnd <= current.length
+
+            // If an editor exposes non-empty accessibility text but no valid
+            // selection range, that text may actually be a placeholder/hint.
+            // Do not guess "cursor at end": fall back to the normal paste path
+            // so we never prepend phantom UI labels such as WhatsApp's "Mensaje".
+            if (current.isNotEmpty() && !hasValidSelection) {
+                Log.i(TAG, "Direct insert skipped: non-empty node text with invalid selection")
+                return false
+            }
+
+            val start = if (hasValidSelection) rawStart else 0
+            val end = if (hasValidSelection) rawEnd else start
             val replacementStart = minOf(start, end)
             val replacementEnd = maxOf(start, end)
             val updated = current.replaceRange(replacementStart, replacementEnd, text)
