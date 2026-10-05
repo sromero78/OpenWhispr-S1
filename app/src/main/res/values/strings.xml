@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<!-- Modified in OpenWispr-S1 from EdiBianco/OpenWhispr. See ATTRIBUTION.md. -->\n<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">OpenWispr Beta</string>
     <string name="accessibility_description">Dictation: records audio, transcribes, and inserts text into focused fields.</string>
