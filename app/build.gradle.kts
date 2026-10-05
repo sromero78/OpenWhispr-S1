@@ -1,4 +1,5 @@
-// Modified in OpenWispr-S1 from EdiBianco/OpenWhispr. See ATTRIBUTION.md.\nplugins {
+// Modified in OpenWispr-S1 from EdiBianco/OpenWhispr. See ATTRIBUTION.md.
+plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
