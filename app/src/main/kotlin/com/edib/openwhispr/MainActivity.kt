@@ -343,7 +343,7 @@ class MainActivity : AppCompatActivity() {
             if (dotTimeoutSeconds == 0) "Siempre" else "$dotTimeoutSeconds s"
         ) {
             showDotTimeoutDialog { seconds ->
-                dotTimeoutSub.text = if (seconds == 0) "Always" else "$seconds s"
+                dotTimeoutSub.text = if (seconds == 0) "Siempre" else "$seconds s"
             }
         }
         dotTimeoutSub = dotTimeoutRow.findViewWithTag("subtitle")
@@ -393,7 +393,7 @@ class MainActivity : AppCompatActivity() {
                         Uri.parse("package:$packageName")
                     ))
                 } catch (e: Exception) {
-                    toast("Couldn't open overlay permission: ${e.message}")
+                    toast("No se pudo abrir el permiso de superposición: ${e.message}")
                 }
             }
         })
@@ -411,7 +411,7 @@ class MainActivity : AppCompatActivity() {
         val versionName = try {
             packageManager.getPackageInfo(packageName, 0).versionName ?: "desconocida"
         } catch (e: Exception) {
-            "unknown"
+            "desconocida"
         }
         settingsContainer.addView(settingsRow("Versión", versionName))
         settingsContainer.addView(settingsRow("Canal", "Canary 5 · desarrollo"))
@@ -421,7 +421,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/sromero78/OpenWhispr-S1")))
             } catch (e: Exception) {
-                toast("Couldn't open browser: ${e.message}")
+                toast("No se pudo abrir el navegador: ${e.message}")
             }
         })
 
@@ -525,7 +525,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     is DownloadState.Extracting -> {
                         views.progress.isIndeterminate = true
-                        views.subtitle.text = "Extracting..."
+                        views.subtitle.text = "Extrayendo..."
                     }
                     is DownloadState.Done -> {
                         views.progress.visibility = View.GONE
@@ -653,7 +653,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Android 13+ silently disables the Accessibility toggle for apps
-     * installed outside the Play Store ("Restricted settings"), with no
+     * installed outside the Play Store ("Ajustes restringidos"), with no
      * explanation in the Settings UI itself -- it just looks broken. Walks
      * the user through unlocking it before sending them to the system
      * screen, instead of letting them hit a dead end and assume the app
@@ -697,7 +697,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
             } catch (e2: Exception) {
-                toast("Couldn't open battery settings: ${e2.message}")
+                toast("No se pudieron abrir los ajustes de batería: ${e2.message}")
             }
         }
     }
@@ -722,7 +722,7 @@ class MainActivity : AppCompatActivity() {
                         .setTitle("Actualización disponible")
                         .setMessage(
                             buildString {
-                                append("OpenWispr ${info.version} is available. You're on $currentVersion.")
+                                append("OpenWispr ${info.version} está disponible. Tienes $currentVersion.")
                                 if (!info.notes.isNullOrBlank()) {
                                     append("\n\nWhat's new:\n")
                                     append(info.notes)
@@ -733,7 +733,7 @@ class MainActivity : AppCompatActivity() {
                         .setNegativeButton("Más tarde", null)
                         .show()
                 } else if (force) {
-                    toast("You're up to date (v$currentVersion)")
+                    toast("Ya tienes la última versión (v$currentVersion)")
                 }
             }
         }
@@ -752,7 +752,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(info.url)))
             } catch (e: Exception) {
-                toast("Couldn't open browser: ${e.message}")
+                toast("No se pudo abrir el navegador: ${e.message}")
             }
             return
         }
@@ -770,7 +770,7 @@ class MainActivity : AppCompatActivity() {
                             )
                         )
                     } catch (e: Exception) {
-                        toast("Couldn't open settings: ${e.message}")
+                        toast("No se pudieron abrir los ajustes: ${e.message}")
                     }
                 }
                 .setNegativeButton("Cancelar", null)
@@ -783,7 +783,7 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 if (file == null) {
-                    toast("Download failed: ${error ?: "unknown error"}")
+                    toast("Download failed: ${error ?: "desconocida error"}")
                     return@runOnUiThread
                 }
                 installApk(file)
@@ -800,7 +800,7 @@ class MainActivity : AppCompatActivity() {
         try {
             startActivity(intent)
         } catch (e: Exception) {
-            toast("Couldn't start installer: ${e.message}")
+            toast("No se pudo iniciar el instalador: ${e.message}")
         }
     }
 
@@ -814,24 +814,22 @@ class MainActivity : AppCompatActivity() {
         android.app.AlertDialog.Builder(this)
             .setTitle("Mantener el dictado activo")
             .setMessage(
-                "Android's battery saver can shut down OpenWispr's background " +
-                "service to save power, which makes the mic overlay disappear until " +
-                "you reopen the app.\n\n" +
-                "Allow it to run unrestricted so it stays available.\n\n" +
-                "On some phones (Samsung, Xiaomi, OnePlus, and others) you may also " +
-                "need to allow \"autostart\" or remove OpenWispr from any " +
-                "battery/app-sleep manager in your phone's own settings, separately " +
-                "from the Android dialog this opens."
+                "El ahorro de batería de Android puede cerrar el servicio en segundo plano de OpenWispr " +
+                "y hacer desaparecer la burbuja hasta que vuelvas a abrir la app.\n\n" +
+                "Permite que funcione sin restricciones para mantenerla disponible.\n\n" +
+                "En algunos móviles (Samsung, Xiaomi, OnePlus y otros) también puede ser necesario " +
+                "permitir el inicio automático o excluir OpenWispr de los sistemas de suspensión " +
+                "de aplicaciones del fabricante."
             )
             .setPositiveButton("Quitar restricciones") { _, _ -> requestBatteryExemption() }
-            .setNegativeButton("Later", null)
+            .setNegativeButton("Más tarde", null)
             .show()
     }
 
     private fun promptApiKey() {
         val link = TextView(this).apply {
             text = android.text.Html.fromHtml(
-                "Don't have one? Get a free key at <a href=\"https://console.groq.com/keys\">console.groq.com/keys</a>",
+                "¿No tienes una? Consigue una clave gratuita en <a href=\"https://console.groq.com/keys\">console.groq.com/keys</a>",
                 android.text.Html.FROM_HTML_MODE_LEGACY
             )
             movementMethod = android.text.method.LinkMovementMethod.getInstance()
