@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">OpenWispr Dev</string>
+    <string name="app_name">OpenWispr Canary</string>
     <string name="accessibility_description">Dictation: records audio, transcribes, and inserts text into focused fields.</string>
-    <string name="notification_channel_name">OpenWispr Dev background service</string>
+    <string name="notification_channel_name">OpenWispr Canary background service</string>
     <string name="notification_channel_description">Keeps the dictation overlay running in the background</string>
-    <string name="notification_content_title">OpenWispr Dev is running</string>
+    <string name="notification_content_title">OpenWispr Canary is running</string>
     <string name="notification_content_text">Tap the floating mic to dictate</string>
 </resources>
