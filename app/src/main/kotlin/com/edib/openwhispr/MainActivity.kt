@@ -1,4 +1,4 @@
-package com.edib.openwhispr
+// Modified in OpenWispr-S1 from EdiBianco/OpenWhispr. See ATTRIBUTION.md.\npackage com.edib.openwhispr
 
 import android.Manifest
 import android.content.Intent
