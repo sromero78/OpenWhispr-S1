@@ -94,7 +94,7 @@ class MainActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(dp(40), dp(40)).apply { marginEnd = dp(12) }
         })
         header.addView(TextView(this).apply {
-            text = "OpenWispr Dev"
+            text = "OpenWispr Beta"
             textSize = 32f
         })
         outer.addView(header)
