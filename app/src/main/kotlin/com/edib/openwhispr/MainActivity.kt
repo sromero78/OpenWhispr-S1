@@ -165,7 +165,7 @@ class MainActivity : AppCompatActivity() {
         statusContainer.addView(accRow)
 
         accCaption = TextView(this).apply {
-            text = "Needed to detect the focused text field and insert the cleaned-up text there."
+            text = "Necesario para detectar el campo de texto activo e insertar ahí el texto procesado."
             textSize = 12f
             setTextColor(attrColor(android.R.attr.textColorSecondary))
             alpha = 0.8f
@@ -187,8 +187,8 @@ class MainActivity : AppCompatActivity() {
             isClickable = false
         }
         val serviceRow = settingsRow(
-            "Background service",
-            "Pause the mic overlay without disabling accessibility",
+            "Servicio en segundo plano",
+            "Pausa la burbuja sin desactivar Accesibilidad",
             serviceSwitch
         ) {
             val newVal = !serviceSwitch.isChecked
@@ -265,8 +265,8 @@ class MainActivity : AppCompatActivity() {
             isClickable = false
         }
         val voiceCommandsRow = settingsRow(
-            "Voice commands",
-            "Say a trigger phrase to translate, summarize, and more",
+            "Comandos de voz",
+            "Usa una frase de activación para resumir, traducir y más",
             voiceCommandsSwitch
         ) {
             val newVal = !voiceCommandsSwitch.isChecked
@@ -302,8 +302,8 @@ class MainActivity : AppCompatActivity() {
             isClickable = false
         }
         settingsContainer.addView(settingsRow(
-            "Minimize to dot",
-            "Show a small point outside text fields instead of hiding completely",
+            "Minimizar a punto",
+            "Muestra un punto pequeño en lugar de ocultarse por completo",
             minimizeSwitch
         ) {
             val enabled = !minimizeSwitch.isChecked
@@ -314,10 +314,10 @@ class MainActivity : AppCompatActivity() {
 
         lateinit var bubbleSizeSub: TextView
         val bubbleSizeRow = settingsRow(
-            "Bubble size",
+            "Tamaño de burbuja",
             "${prefs().getInt("bubble_size_dp", 44)} dp"
         ) {
-            showIntSlider("Bubble size", "bubble_size_dp", 32, 72, 44, " dp") { value ->
+            showIntSlider("Tamaño de burbuja", "bubble_size_dp", 32, 72, 44, " dp") { value ->
                 bubbleSizeSub.text = "$value dp"
             }
         }
@@ -326,10 +326,10 @@ class MainActivity : AppCompatActivity() {
 
         lateinit var dotSizeSub: TextView
         val dotSizeRow = settingsRow(
-            "Dot size",
+            "Tamaño del punto",
             "${prefs().getInt("dot_size_dp", 10)} dp"
         ) {
-            showIntSlider("Dot size", "dot_size_dp", 6, 18, 10, " dp") { value ->
+            showIntSlider("Tamaño del punto", "dot_size_dp", 6, 18, 10, " dp") { value ->
                 dotSizeSub.text = "$value dp"
             }
         }
@@ -339,7 +339,7 @@ class MainActivity : AppCompatActivity() {
         lateinit var dotTimeoutSub: TextView
         val dotTimeoutSeconds = prefs().getInt("dot_timeout_seconds", 3).coerceIn(0, 10)
         val dotTimeoutRow = settingsRow(
-            "Dot visible time",
+            "Tiempo visible del punto",
             if (dotTimeoutSeconds == 0) "Always" else "$dotTimeoutSeconds s"
         ) {
             showDotTimeoutDialog { seconds ->
@@ -351,10 +351,10 @@ class MainActivity : AppCompatActivity() {
 
         lateinit var inactiveAlphaSub: TextView
         val inactiveAlphaRow = settingsRow(
-            "Inactive transparency",
+            "Transparencia en reposo",
             "${prefs().getInt("overlay_alpha_percent", 70)}%"
         ) {
-            showIntSlider("Inactive transparency", "overlay_alpha_percent", 20, 100, 70, "%") { value ->
+            showIntSlider("Transparencia en reposo", "overlay_alpha_percent", 20, 100, 70, "%") { value ->
                 inactiveAlphaSub.text = "$value%"
             }
         }
@@ -399,11 +399,11 @@ class MainActivity : AppCompatActivity() {
         })
 
         settingsContainer.addView(settingsRow(
-            "Restore overlay",
-            "Recreate the bubble or dot now"
+            "Restaurar burbuja",
+            "Recrea ahora la burbuja o el punto"
         ) {
             WhisperAccessibilityService.instance?.restoreOverlay()
-                ?: toast("Accessibility service is not running")
+                ?: toast("El servicio de accesibilidad no está activo")
         })
 
         settingsContainer.addView(sectionHeader("Acerca de"))
@@ -575,22 +575,22 @@ class MainActivity : AppCompatActivity() {
         val hasModel = LocalTranscriber.availableModels(this).isNotEmpty()
         val unrestricted = isIgnoringBatteryOptimizations()
 
-        audioRowSub.text = if (audio) "Granted" else "Tap to grant permission"
-        accRowSub.text = if (acc) "Enabled" else "Tap to enable in settings"
+        audioRowSub.text = if (audio) "Concedido" else "Toca para conceder el permiso"
+        accRowSub.text = if (acc) "Activado" else "Toca para activarlo en Ajustes"
         batteryRowSub.text = if (unrestricted)
             "Unrestricted — won't be shut down to save battery"
         else
-            "Tap to allow background activity (recommended)"
+            "Toca para permitir actividad en segundo plano (recomendado)"
 
         // --- Setup checklist card ---
         val allOk = audio && acc && unrestricted
         val doneCount = listOf(audio, acc, unrestricted).count { it }
 
         setupCollapsedRow.visibility = if (allOk) View.VISIBLE else View.GONE
-        setupCollapsedRowSub.text = if (setupExpanded) "Tap to collapse" else "Tap to review"
+        setupCollapsedRowSub.text = if (setupExpanded) "Toca para contraer" else "Toca para revisar"
 
         setupDoneSummary.visibility = if (!allOk && doneCount > 0) View.VISIBLE else View.GONE
-        setupDoneSummary.text = "✓ $doneCount of 3 setup steps ready"
+        setupDoneSummary.text = "✓ $doneCount de 3 pasos listos"
 
         fun rowVisibility(ok: Boolean) =
             if (!ok || (allOk && setupExpanded)) View.VISIBLE else View.GONE
@@ -609,18 +609,29 @@ class MainActivity : AppCompatActivity() {
 
         val voiceCommandsEnabled = prefs().getBoolean("voice_commands_enabled", false)
         voiceCommandsDetailContainer.visibility = if (voiceCommandsEnabled) View.VISIBLE else View.GONE
-        triggerPhraseRowSub.text = "\"${prefs().getString("command_trigger_phrase", "Whisper Command")}\""
+        triggerPhraseRowSub.text = "\"${prefs().getString("command_trigger_phrase", "Comando Whisper")}\""
 
         val apiKey = prefs().getString("api_key", "") ?: ""
-        keyRowSub.text = if (apiKey.isBlank()) "Tap to set"
+        keyRowSub.text = if (apiKey.isBlank()) "Toca para configurarla"
                          else if (apiKey.length > 7) "gsk_...${apiKey.takeLast(4)}"
                          else "gsk_...***"
 
         val customInstructions = prefs().getString("custom_instructions", "") ?: ""
         customInstructionsRowSub.text = if (customInstructions.isBlank())
-            "Tap to add extra refinements"
+            "Toca para añadir reglas adicionales"
         else
             customInstructions.replace("\n", " ")
+
+        val writingProfile = prefs().getString("writing_profile", WritingProfiles.NORMAL) ?: WritingProfiles.NORMAL
+        writingProfileRowSub.text = WritingProfiles.label(writingProfile)
+        val historyCount = DictationHistory.load(prefs()).size
+        historyRowSub.text = if (historyCount == 0)
+            "Sin dictados guardados"
+        else
+            "$historyCount de ${DictationHistory.MAX_ITEMS} dictados guardados"
+        overlayColorRowSub.text = overlayColorLabel(
+            prefs().getInt("overlay_idle_color", 0xDD1C1C1E.toInt())
+        )
 
         val cur = prefs().getString("model_name", "") ?: ""
         if (cur.isBlank() || !File(filesDir, "models/$cur").exists()) {
@@ -634,7 +645,7 @@ class MainActivity : AppCompatActivity() {
         val postReady = !usePostProcessing || hasKey
         val ready = audio && acc && (localReady || cloudReady) && postReady
 
-        statusSubtitle.text = if (ready) "Ready — tap the overlay dot to dictate" else "Setup required"
+        statusSubtitle.text = if (ready) "Listo — toca el punto para dictar" else "Configuración pendiente"
         statusSubtitle.setTextColor(if (ready) attrColor(androidx.appcompat.R.attr.colorPrimary) else attrColor(android.R.attr.textColorSecondary))
 
         refreshAllCards()
@@ -762,7 +773,7 @@ class MainActivity : AppCompatActivity() {
                         toast("Couldn't open settings: ${e.message}")
                     }
                 }
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton("Cancelar", null)
                 .show()
             return
         }
@@ -842,7 +853,7 @@ class MainActivity : AppCompatActivity() {
                 prefs().edit().putString("api_key", input.text.toString().trim()).apply()
                 refresh()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton("Cancelar", null)
             .show()
     }
 
@@ -859,13 +870,13 @@ class MainActivity : AppCompatActivity() {
         }
         android.app.AlertDialog.Builder(this)
             .setTitle("Instrucciones personalizadas")
-            .setMessage("These are appended to OpenWispr's built-in cleanup rules. They can't override its safety, formatting, or self-correction behavior.")
+            .setMessage("Se añaden a las reglas internas de limpieza de OpenWispr. No sustituyen las reglas de seguridad, formato ni autocorrección.")
             .setView(input.apply { setPadding(dp(24), dp(8), dp(24), dp(8)) })
-            .setPositiveButton("Save") { _, _ ->
+            .setPositiveButton("Guardar") { _, _ ->
                 prefs().edit().putString("custom_instructions", input.text.toString().trim()).apply()
                 refresh()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton("Cancelar", null)
             .show()
     }
 
@@ -878,14 +889,14 @@ class MainActivity : AppCompatActivity() {
             .setTitle("Frase de activación")
             .setMessage("Di esta frase al principio de una grabación para entrar en modo comando en lugar de dictado normal.")
             .setView(input.apply { setPadding(dp(24), dp(8), dp(24), dp(8)) })
-            .setPositiveButton("Save") { _, _ ->
+            .setPositiveButton("Guardar") { _, _ ->
                 val phrase = input.text.toString().trim()
                 prefs().edit()
                     .putString("command_trigger_phrase", if (phrase.isBlank()) "Comando Whisper" else phrase)
                     .apply()
                 refresh()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton("Cancelar", null)
             .show()
     }
 
@@ -1076,25 +1087,25 @@ class MainActivity : AppCompatActivity() {
         android.app.AlertDialog.Builder(this)
             .setTitle(title)
             .setView(content)
-            .setPositiveButton("Save") { _, _ ->
+            .setPositiveButton("Guardar") { _, _ ->
                 val value = min + seek.progress
                 prefs().edit().putInt(prefKey, value).apply()
                 onSaved?.invoke(value)
                 WhisperAccessibilityService.instance?.refreshOverlaySettings()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton("Cancelar", null)
             .show()
     }
 
     private fun showDotTimeoutDialog(onSaved: (Int) -> Unit) {
         val labels = Array(11) { index ->
-            if (index == 10) "Always" else "${index + 1} seconds"
+            if (index == 10) "Siempre" else "${index + 1} s"
         }
         val current = prefs().getInt("dot_timeout_seconds", 3).coerceIn(0, 10)
         val checked = if (current == 0) 10 else current - 1
 
         android.app.AlertDialog.Builder(this)
-            .setTitle("Dot visible time")
+            .setTitle("Tiempo visible del punto")
             .setSingleChoiceItems(labels, checked) { dialog, which ->
                 val seconds = if (which == 10) 0 else which + 1
                 prefs().edit().putInt("dot_timeout_seconds", seconds).apply()
@@ -1102,7 +1113,7 @@ class MainActivity : AppCompatActivity() {
                 WhisperAccessibilityService.instance?.refreshOverlaySettings()
                 dialog.dismiss()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton("Cancelar", null)
             .show()
     }
 
