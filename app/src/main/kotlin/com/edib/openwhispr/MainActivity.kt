@@ -3,6 +3,9 @@ package com.edib.openwhispr
 
 import android.Manifest
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Color
@@ -657,7 +660,7 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("Open Accessibility settings") { _, _ ->
                 startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton("Cancelar", null)
             .show()
     }
 
@@ -835,7 +838,7 @@ class MainActivity : AppCompatActivity() {
         android.app.AlertDialog.Builder(this)
             .setTitle("Groq API Key")
             .setView(container)
-            .setPositiveButton("Save") { _, _ ->
+            .setPositiveButton("Guardar") { _, _ ->
                 prefs().edit().putString("api_key", input.text.toString().trim()).apply()
                 refresh()
             }
@@ -848,14 +851,14 @@ class MainActivity : AppCompatActivity() {
         // shown here -- this only lets the user append their own extra
         // refinements on top of it (see PostProcessor.effectivePrompt).
         val input = EditText(this).apply {
-            hint = "e.g. always spell out \"NASA\" in full"
+            hint = "Ej.: escribe siempre las siglas CNC en mayúsculas"
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
             minLines = 4
             gravity = Gravity.TOP or Gravity.START
             setText(prefs().getString("custom_instructions", ""))
         }
         android.app.AlertDialog.Builder(this)
-            .setTitle("Add custom instructions")
+            .setTitle("Instrucciones personalizadas")
             .setMessage("These are appended to OpenWispr's built-in cleanup rules. They can't override its safety, formatting, or self-correction behavior.")
             .setView(input.apply { setPadding(dp(24), dp(8), dp(24), dp(8)) })
             .setPositiveButton("Save") { _, _ ->
@@ -868,17 +871,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun promptTriggerPhrase() {
         val input = EditText(this).apply {
-            hint = "Whisper Command"
-            setText(prefs().getString("command_trigger_phrase", "Whisper Command"))
+            hint = "Comando Whisper"
+            setText(prefs().getString("command_trigger_phrase", "Comando Whisper"))
         }
         android.app.AlertDialog.Builder(this)
-            .setTitle("Trigger phrase")
-            .setMessage("Say this phrase at the start of a recording to switch into command mode instead of normal dictation.")
+            .setTitle("Frase de activación")
+            .setMessage("Di esta frase al principio de una grabación para entrar en modo comando en lugar de dictado normal.")
             .setView(input.apply { setPadding(dp(24), dp(8), dp(24), dp(8)) })
             .setPositiveButton("Save") { _, _ ->
                 val phrase = input.text.toString().trim()
                 prefs().edit()
-                    .putString("command_trigger_phrase", if (phrase.isBlank()) "Whisper Command" else phrase)
+                    .putString("command_trigger_phrase", if (phrase.isBlank()) "Comando Whisper" else phrase)
                     .apply()
                 refresh()
             }
@@ -887,22 +890,154 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showCommandExamples() {
-        val trigger = prefs().getString("command_trigger_phrase", "Whisper Command") ?: "Whisper Command"
+        val trigger = prefs().getString("command_trigger_phrase", "Comando Whisper") ?: "Comando Whisper"
         val message = """
-            Say the trigger phrase, then one of these -- applies to whatever's already in the field, or to text you dictate right after the command:
+            Di la frase de activación y después la orden. Se aplicará al texto que ya esté en el campo o al texto que dictes dentro del propio comando:
 
-            • "$trigger, summarize this in two sentences"
-            • "$trigger, enhance the flow"
-            • "$trigger, translate to Italian"
-            • "$trigger, make this more formal"
-            • "$trigger, turn this into a list"
+            • "$trigger, resume esto en dos frases"
+            • "$trigger, mejora la fluidez"
+            • "$trigger, tradúcelo al italiano"
+            • "$trigger, ponlo en un tono más formal"
+            • "$trigger, conviértelo en una lista"
 
-            You can chain more than one: "$trigger, translate to Italian and turn it into a list" applies them in that order.
+            Puedes encadenar varias: "$trigger, tradúcelo al italiano y conviértelo en una lista".
         """.trimIndent()
         android.app.AlertDialog.Builder(this)
-            .setTitle("Command examples")
+            .setTitle("Ejemplos de comandos")
             .setMessage(message)
-            .setPositiveButton("Got it", null)
+            .setPositiveButton("Entendido", null)
+            .show()
+    }
+
+    private fun showWritingProfileDialog() {
+        val current = prefs().getString("writing_profile", WritingProfiles.NORMAL) ?: WritingProfiles.NORMAL
+        val checked = WritingProfiles.keys.indexOf(current).coerceAtLeast(0)
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Perfil de escritura")
+            .setSingleChoiceItems(WritingProfiles.labels, checked) { dialog, which ->
+                val key = WritingProfiles.keys[which]
+                prefs().edit().putString("writing_profile", key).apply()
+                writingProfileRowSub.text = WritingProfiles.label(key)
+                dialog.dismiss()
+                if (key == WritingProfiles.CUSTOM) promptCustomProfileInstructions()
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun promptCustomProfileInstructions() {
+        val input = EditText(this).apply {
+            hint = "Ej.: conserva un tono breve y directo, sin fórmulas de cortesía añadidas"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            minLines = 4
+            gravity = Gravity.TOP or Gravity.START
+            setText(prefs().getString("profile_custom_instructions", ""))
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Perfil personalizado")
+            .setMessage("Estas reglas solo se aplican cuando está seleccionado el perfil Personalizado.")
+            .setView(input.apply { setPadding(dp(24), dp(8), dp(24), dp(8)) })
+            .setPositiveButton("Guardar") { _, _ ->
+                prefs().edit().putString("profile_custom_instructions", input.text.toString().trim()).apply()
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun showHistoryDialog() {
+        val items = DictationHistory.load(prefs())
+        if (items.isEmpty()) {
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Historial de dictados")
+                .setMessage("Todavía no hay dictados guardados. El historial es local y solo conserva texto, nunca audio.")
+                .setPositiveButton("Entendido", null)
+                .show()
+            return
+        }
+
+        val labels = items.mapIndexed { index, text ->
+            val compact = text.replace("\n", " ")
+            val shown = if (compact.length > 120) compact.take(117) + "…" else compact
+            "${index + 1}. $shown"
+        }.toTypedArray()
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Historial de dictados")
+            .setMessage("Toca un texto para copiarlo. Se guardan como máximo ${DictationHistory.MAX_ITEMS} y solo en este dispositivo.")
+            .setItems(labels) { _, which ->
+                val clip = ClipData.newPlainText("OpenWispr historial", items[which])
+                (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(clip)
+                toast("Texto copiado")
+            }
+            .setNeutralButton("Borrar historial") { _, _ ->
+                DictationHistory.clear(prefs())
+                refresh()
+                toast("Historial borrado")
+            }
+            .setNegativeButton("Cerrar", null)
+            .show()
+    }
+
+    private fun overlayColorLabel(color: Int): String = when (color) {
+        0xDD1C1C1E.toInt() -> "Grafito"
+        0xFF1565C0.toInt() -> "Azul"
+        0xFF00897B.toInt() -> "Verde azulado"
+        0xFFFF8F00.toInt() -> "Ámbar"
+        0xFF7B1FA2.toInt() -> "Violeta"
+        else -> String.format("#%06X", 0xFFFFFF and color)
+    }
+
+    private fun showOverlayColorDialog() {
+        val names = arrayOf("Grafito", "Azul", "Verde azulado", "Ámbar", "Violeta", "Personalizado…")
+        val colors = intArrayOf(
+            0xDD1C1C1E.toInt(),
+            0xFF1565C0.toInt(),
+            0xFF00897B.toInt(),
+            0xFFFF8F00.toInt(),
+            0xFF7B1FA2.toInt()
+        )
+        val current = prefs().getInt("overlay_idle_color", 0xDD1C1C1E.toInt())
+        val checked = colors.indexOf(current)
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Color en reposo")
+            .setSingleChoiceItems(names, checked) { dialog, which ->
+                dialog.dismiss()
+                if (which == names.lastIndex) {
+                    promptCustomOverlayColor()
+                } else {
+                    val color = colors[which]
+                    prefs().edit().putInt("overlay_idle_color", color).apply()
+                    overlayColorRowSub.text = overlayColorLabel(color)
+                    WhisperAccessibilityService.instance?.refreshOverlaySettings()
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun promptCustomOverlayColor() {
+        val input = EditText(this).apply {
+            hint = "#3F51B5"
+            inputType = InputType.TYPE_CLASS_TEXT
+            setText(String.format("#%06X", 0xFFFFFF and prefs().getInt("overlay_idle_color", 0xDD1C1C1E.toInt())))
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Color personalizado")
+            .setMessage("Introduce un color hexadecimal, por ejemplo #3F51B5.")
+            .setView(input.apply { setPadding(dp(24), dp(8), dp(24), dp(8)) })
+            .setPositiveButton("Guardar") { _, _ ->
+                try {
+                    val color = Color.parseColor(input.text.toString().trim())
+                    prefs().edit().putInt("overlay_idle_color", color).apply()
+                    overlayColorRowSub.text = overlayColorLabel(color)
+                    WhisperAccessibilityService.instance?.refreshOverlaySettings()
+                } catch (_: IllegalArgumentException) {
+                    toast("Color no válido")
+                }
+            }
+            .setNegativeButton("Cancelar", null)
             .show()
     }
 
