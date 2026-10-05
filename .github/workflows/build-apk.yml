@@ -2,7 +2,7 @@ name: Build APK
 
 on:
   push:
-    branches: [ dev ]
+    branches: [ beta ]
   workflow_dispatch: {}
 
 permissions:
@@ -45,12 +45,12 @@ jobs:
       - name: Rename APK with version
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/*.apk "dist/openwispr-dev-v${{ steps.version.outputs.version }}-debug.apk"
+          cp app/build/outputs/apk/debug/*.apk "dist/openwispr-beta-v${{ steps.version.outputs.version }}-debug.apk"
 
       - name: Upload APK as workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: openwispr-dev-debug-apk
+          name: openwispr-beta-debug-apk
           path: dist/*.apk
 
       - name: Extract changelog for this version
@@ -71,7 +71,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}
-          name: OpenWispr Dev v${{ steps.version.outputs.version }}
+          target_commitish: ${{ github.ref_name }}
+          name: OpenWispr Beta v${{ steps.version.outputs.version }}
           body: |
             Free, open-source push-to-talk dictation for Android. Debug build from commit `${{ github.sha }}`.
             Transcription + cleanup via Groq (`whisper-large-v3` + `openai/gpt-oss-120b`) with your own API key, or fully on-device with no key or internet needed.
