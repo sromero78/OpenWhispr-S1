@@ -1,4 +1,4 @@
-package com.edib.openwhispr
+// Modified in OpenWispr-S1 from EdiBianco/OpenWhispr. See ATTRIBUTION.md.\npackage com.edib.openwhispr
 
 import android.accessibilityservice.AccessibilityService
 import android.app.NotificationChannel
