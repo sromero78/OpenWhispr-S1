@@ -46,6 +46,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var keyRowSub: TextView
     private lateinit var customInstructionsRowSub: TextView
     private lateinit var customInstructionsRow: LinearLayout
+    private lateinit var writingProfileRowSub: TextView
+    private lateinit var historyRowSub: TextView
+    private lateinit var overlayColorRowSub: TextView
     private lateinit var modelContainer: LinearLayout
     private lateinit var voiceCommandsDetailContainer: LinearLayout
     private lateinit var triggerPhraseRowSub: TextView
@@ -95,15 +98,15 @@ class MainActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(dp(40), dp(40)).apply { marginEnd = dp(12) }
         })
         header.addView(TextView(this).apply {
-            text = "OpenWispr Canary"
+            text = "OpenWispr"
             textSize = 32f
         })
         outer.addView(header)
 
         tabLayout = TabLayout(this).apply {
-            addTab(newTab().setText("Status"))
-            addTab(newTab().setText("Dictation"))
-            addTab(newTab().setText("Settings"))
+            addTab(newTab().setText("Estado"))
+            addTab(newTab().setText("Dictado"))
+            addTab(newTab().setText("Ajustes"))
             addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
                 override fun onTabSelected(tab: TabLayout.Tab) { showTab(tab.position) }
                 override fun onTabUnselected(tab: TabLayout.Tab) {}
@@ -118,12 +121,12 @@ class MainActivity : AppCompatActivity() {
 
         // ================= Status tab =================
 
-        val statusRow = settingsRow("Status", "Checking...")
+        val statusRow = settingsRow("Estado", "Comprobando...")
         statusSubtitle = statusRow.findViewWithTag("subtitle")
         statusContainer.addView(statusRow)
 
         // --- Setup checklist card ---
-        setupCollapsedRow = settingsRow("Setup", "Checking...") {
+        setupCollapsedRow = settingsRow("Configuración", "Comprobando...") {
             setupExpanded = !setupExpanded
             refresh()
         }
@@ -138,7 +141,7 @@ class MainActivity : AppCompatActivity() {
         statusContainer.addView(setupDoneSummary)
 
         audioDot = statusDot()
-        audioRow = settingsRow("Audio permission", "Checking...", leading = audioDot) {
+        audioRow = settingsRow("Permiso de micrófono", "Comprobando...", leading = audioDot) {
             if (!hasPerm(Manifest.permission.RECORD_AUDIO)) {
                 ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 1)
             }
@@ -147,7 +150,7 @@ class MainActivity : AppCompatActivity() {
         statusContainer.addView(audioRow)
 
         accDot = statusDot()
-        accRow = settingsRow("Accessibility service", "Checking...", leading = accDot) {
+        accRow = settingsRow("Servicio de accesibilidad", "Comprobando...", leading = accDot) {
             val alreadyEnabled = WhisperAccessibilityService.instance != null
             if (!alreadyEnabled && android.os.Build.VERSION.SDK_INT >= 33) {
                 showRestrictedSettingsHelp()
@@ -168,7 +171,7 @@ class MainActivity : AppCompatActivity() {
         statusContainer.addView(accCaption)
 
         batteryDot = statusDot()
-        batteryRow = settingsRow("Battery optimization", "Checking...", leading = batteryDot) {
+        batteryRow = settingsRow("Optimización de batería", "Comprobando...", leading = batteryDot) {
             requestBatteryExemption()
         }
         batteryRowSub = batteryRow.findViewWithTag("subtitle")
@@ -194,14 +197,14 @@ class MainActivity : AppCompatActivity() {
 
         // ================= Dictation tab =================
 
-        dictationContainer.addView(sectionHeader("Engine"))
+        dictationContainer.addView(sectionHeader("Motor"))
 
         val isCloud = !prefs().getBoolean("use_local", true)
         val cloudSwitch = MaterialSwitch(this).apply {
             isChecked = isCloud
             isClickable = false
         }
-        val cloudRow = settingsRow("Use cloud transcription", "Requires Groq API key", cloudSwitch) {
+        val cloudRow = settingsRow("Usar transcripción en la nube", "Requiere una clave API de Groq", cloudSwitch) {
             val newCloud = !cloudSwitch.isChecked
             prefs().edit().putBoolean("use_local", !newCloud).apply()
             cloudSwitch.isChecked = newCloud
@@ -210,18 +213,18 @@ class MainActivity : AppCompatActivity() {
         dictationContainer.addView(cloudRow)
 
         modelContainer = vertical(0)
-        modelContainer.addView(sectionHeader("Local models"))
+        modelContainer.addView(sectionHeader("Modelos locales"))
         for (m in MODEL_CATALOG) modelContainer.addView(buildModelRow(m))
         dictationContainer.addView(modelContainer)
 
-        dictationContainer.addView(sectionHeader("Post-Processing"))
+        dictationContainer.addView(sectionHeader("Postprocesado"))
 
         val isPostProcessing = prefs().getBoolean("use_post_processing", false)
         val postProcessSwitch = MaterialSwitch(this).apply {
             isChecked = isPostProcessing
             isClickable = false
         }
-        val postProcessRow = settingsRow("Cleanup transcript", "Uses Groq Chat API to fix grammar and punctuation", postProcessSwitch) {
+        val postProcessRow = settingsRow("Limpiar transcripción", "Usa Groq para corregir gramática y puntuación", postProcessSwitch) {
             val newVal = !postProcessSwitch.isChecked
             prefs().edit().putBoolean("use_post_processing", newVal).apply()
             postProcessSwitch.isChecked = newVal
@@ -229,7 +232,7 @@ class MainActivity : AppCompatActivity() {
         }
         dictationContainer.addView(postProcessRow)
 
-        customInstructionsRow = settingsRow("Add custom instructions", "Tap to add extra refinements") {
+        customInstructionsRow = settingsRow("Instrucciones personalizadas", "Añade reglas propias al postprocesado") {
             promptCustomInstructions()
         }
         customInstructionsRowSub = customInstructionsRow.findViewWithTag("subtitle")
@@ -237,7 +240,21 @@ class MainActivity : AppCompatActivity() {
         customInstructionsRowSub.ellipsize = android.text.TextUtils.TruncateAt.END
         dictationContainer.addView(customInstructionsRow)
 
-        dictationContainer.addView(sectionHeader("Voice Commands"))
+        val writingProfileRow = settingsRow(
+            "Perfil de escritura",
+            WritingProfiles.label(prefs().getString("writing_profile", WritingProfiles.NORMAL) ?: WritingProfiles.NORMAL)
+        ) { showWritingProfileDialog() }
+        writingProfileRowSub = writingProfileRow.findViewWithTag("subtitle")
+        dictationContainer.addView(writingProfileRow)
+
+        val historyRow = settingsRow(
+            "Historial de dictados",
+            "Hasta ${DictationHistory.MAX_ITEMS} textos guardados solo en este dispositivo"
+        ) { showHistoryDialog() }
+        historyRowSub = historyRow.findViewWithTag("subtitle")
+        dictationContainer.addView(historyRow)
+
+        dictationContainer.addView(sectionHeader("Comandos de voz"))
 
         val isVoiceCommands = prefs().getBoolean("voice_commands_enabled", false)
         val voiceCommandsSwitch = MaterialSwitch(this).apply {
@@ -258,24 +275,24 @@ class MainActivity : AppCompatActivity() {
 
         voiceCommandsDetailContainer = vertical(0)
 
-        val triggerPhraseRow = settingsRow("Trigger phrase", "Tap to change") { promptTriggerPhrase() }
+        val triggerPhraseRow = settingsRow("Frase de activación", "Toca para cambiarla") { promptTriggerPhrase() }
         triggerPhraseRowSub = triggerPhraseRow.findViewWithTag("subtitle")
         voiceCommandsDetailContainer.addView(triggerPhraseRow)
 
-        val examplesRow = settingsRow("Command examples", "See what you can say") { showCommandExamples() }
+        val examplesRow = settingsRow("Ejemplos de comandos", "Consulta qué puedes decir") { showCommandExamples() }
         voiceCommandsDetailContainer.addView(examplesRow)
 
         dictationContainer.addView(voiceCommandsDetailContainer)
 
         // ================= Settings tab =================
 
-        settingsContainer.addView(sectionHeader("Settings"))
+        settingsContainer.addView(sectionHeader("Ajustes"))
 
-        val keyRow = settingsRow("Groq API Key", "Tap to set") { promptApiKey() }
+        val keyRow = settingsRow("Clave API de Groq", "Toca para configurarla") { promptApiKey() }
         keyRowSub = keyRow.findViewWithTag("subtitle")
         settingsContainer.addView(keyRow)
 
-        settingsContainer.addView(sectionHeader("Overlay"))
+        settingsContainer.addView(sectionHeader("Burbuja flotante"))
 
         val minimizeSwitch = MaterialSwitch(this).apply {
             isChecked = prefs().getBoolean("minimize_to_dot", false)
@@ -341,6 +358,13 @@ class MainActivity : AppCompatActivity() {
         inactiveAlphaSub = inactiveAlphaRow.findViewWithTag("subtitle")
         settingsContainer.addView(inactiveAlphaRow)
 
+        val overlayColorRow = settingsRow(
+            "Color en reposo",
+            overlayColorLabel(prefs().getInt("overlay_idle_color", 0xDD1C1C1E.toInt()))
+        ) { showOverlayColorDialog() }
+        overlayColorRowSub = overlayColorRow.findViewWithTag("subtitle")
+        settingsContainer.addView(overlayColorRow)
+
         val systemOverlaySwitch = MaterialSwitch(this).apply {
             isChecked = prefs().getBoolean("system_overlay_enabled", false) && Settings.canDrawOverlays(this@MainActivity)
             isClickable = false
@@ -379,16 +403,18 @@ class MainActivity : AppCompatActivity() {
                 ?: toast("Accessibility service is not running")
         })
 
-        settingsContainer.addView(sectionHeader("About"))
+        settingsContainer.addView(sectionHeader("Acerca de"))
 
         val versionName = try {
             packageManager.getPackageInfo(packageName, 0).versionName ?: "unknown"
         } catch (e: Exception) {
             "unknown"
         }
-        settingsContainer.addView(settingsRow("Version", versionName))
+        settingsContainer.addView(settingsRow("Versión", versionName))
+        settingsContainer.addView(settingsRow("Canal", "Canary 5 · desarrollo"))
+        settingsContainer.addView(settingsRow("Proyecto / mantenedor", "@sromero78"))
 
-        settingsContainer.addView(settingsRow("GitHub", "View source & releases") {
+        settingsContainer.addView(settingsRow("GitHub", "Ver código fuente y versiones") {
             try {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/sromero78/OpenWhispr-S1")))
             } catch (e: Exception) {
@@ -396,7 +422,7 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        settingsContainer.addView(settingsRow("Check for updates", "Tap to check now") {
+        settingsContainer.addView(settingsRow("Buscar actualizaciones", "Comprobar ahora") {
             checkForUpdate(force = true)
         })
 
