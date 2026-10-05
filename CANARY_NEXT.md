@@ -39,3 +39,12 @@ Canary 4 itself remains unchanged during its stability test.
 
 ## Build validation
 Canary Next changes are compiled in CI before promotion to the public Canary branch.
+
+## Implemented in Canary 5 development
+- Spanish-first UI and command guidance.
+- Default trigger phrase: **Comando Whisper**.
+- Writing profiles: Normal, WhatsApp, Formal, Personalizado.
+- Local text-only history, maximum 20 entries, clearable by the user.
+- Configurable idle bubble/dot color without resizing the fixed overlay host.
+- Long-dictation visual warnings at 4:30 and 5:00 without automatic cutoff.
+- In-app build identity with channel and @sromero78 attribution.
