@@ -340,7 +340,7 @@ class MainActivity : AppCompatActivity() {
         val dotTimeoutSeconds = prefs().getInt("dot_timeout_seconds", 3).coerceIn(0, 10)
         val dotTimeoutRow = settingsRow(
             "Tiempo visible del punto",
-            if (dotTimeoutSeconds == 0) "Always" else "$dotTimeoutSeconds s"
+            if (dotTimeoutSeconds == 0) "Siempre" else "$dotTimeoutSeconds s"
         ) {
             showDotTimeoutDialog { seconds ->
                 dotTimeoutSub.text = if (seconds == 0) "Always" else "$seconds s"
@@ -373,8 +373,8 @@ class MainActivity : AppCompatActivity() {
             isClickable = false
         }
         settingsContainer.addView(settingsRow(
-            "System overlay fallback",
-            "Optional 'Display over other apps' layer for extra resilience",
+            "Capa del sistema opcional",
+            "Usa «Mostrar sobre otras apps» como respaldo adicional",
             systemOverlaySwitch
         ) {
             if (systemOverlaySwitch.isChecked) {
@@ -409,7 +409,7 @@ class MainActivity : AppCompatActivity() {
         settingsContainer.addView(sectionHeader("Acerca de"))
 
         val versionName = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "unknown"
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "desconocida"
         } catch (e: Exception) {
             "unknown"
         }
@@ -514,7 +514,7 @@ class MainActivity : AppCompatActivity() {
         views.dlBtn.isEnabled = false
         views.progress.visibility = View.VISIBLE
         views.progress.isIndeterminate = false
-        views.subtitle.text = "Starting download..."
+        views.subtitle.text = "Iniciando descarga..."
 
         ModelDownloader.download(this, model) { state ->
             runOnUiThread {
@@ -530,7 +530,7 @@ class MainActivity : AppCompatActivity() {
                     is DownloadState.Done -> {
                         views.progress.visibility = View.GONE
                         selectModel(model.archive)
-                        toast("${model.name} ready!")
+                        toast("${model.name} listo")
                     }
                     is DownloadState.Error -> {
                         views.progress.visibility = View.GONE
@@ -578,7 +578,7 @@ class MainActivity : AppCompatActivity() {
         audioRowSub.text = if (audio) "Concedido" else "Toca para conceder el permiso"
         accRowSub.text = if (acc) "Activado" else "Toca para activarlo en Ajustes"
         batteryRowSub.text = if (unrestricted)
-            "Unrestricted — won't be shut down to save battery"
+            "Sin restricciones — Android no debería cerrarlo para ahorrar batería"
         else
             "Toca para permitir actividad en segundo plano (recomendado)"
 
@@ -660,7 +660,7 @@ class MainActivity : AppCompatActivity() {
      * doesn't work. */
     private fun showRestrictedSettingsHelp() {
         android.app.AlertDialog.Builder(this)
-            .setTitle("One extra step on Android 13+")
+            .setTitle("Un paso adicional en Android 13+")
             .setMessage(
                 "Android blocks this permission by default for apps installed outside the Play Store -- that's normal, not a bug.\n\n" +
                 "If the Accessibility toggle looks greyed out or won't switch on:\n" +
@@ -668,7 +668,7 @@ class MainActivity : AppCompatActivity() {
                 "2. Tap the \u22ee menu (top right) -> \"Allow restricted settings\"\n" +
                 "3. Come back and enable Accessibility as usual"
             )
-            .setPositiveButton("Open Accessibility settings") { _, _ ->
+            .setPositiveButton("Abrir ajustes de Accesibilidad") { _, _ ->
                 startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             }
             .setNegativeButton("Cancelar", null)
@@ -683,7 +683,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun requestBatteryExemption() {
-        if (isIgnoringBatteryOptimizations()) { toast("Already unrestricted"); return }
+        if (isIgnoringBatteryOptimizations()) { toast("Ya está sin restricciones"); return }
         try {
             startActivity(
                 Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
@@ -719,7 +719,7 @@ class MainActivity : AppCompatActivity() {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 if (info != null) {
                     android.app.AlertDialog.Builder(this)
-                        .setTitle("Update available")
+                        .setTitle("Actualización disponible")
                         .setMessage(
                             buildString {
                                 append("OpenWispr ${info.version} is available. You're on $currentVersion.")
@@ -729,8 +729,8 @@ class MainActivity : AppCompatActivity() {
                                 }
                             }
                         )
-                        .setPositiveButton("Update") { _, _ -> downloadAndInstallUpdate(info) }
-                        .setNegativeButton("Later", null)
+                        .setPositiveButton("Actualizar") { _, _ -> downloadAndInstallUpdate(info) }
+                        .setNegativeButton("Más tarde", null)
                         .show()
                 } else if (force) {
                     toast("You're up to date (v$currentVersion)")
@@ -759,9 +759,9 @@ class MainActivity : AppCompatActivity() {
 
         if (android.os.Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
             android.app.AlertDialog.Builder(this)
-                .setTitle("Allow installing updates")
-                .setMessage("To install updates in-app, allow OpenWispr to install unknown apps on the next screen, then come back and tap Update again.")
-                .setPositiveButton("Continue") { _, _ ->
+                .setTitle("Permitir instalar actualizaciones")
+                .setMessage("Para instalar actualizaciones desde la app, permite que OpenWispr instale aplicaciones desconocidas en la siguiente pantalla. Después vuelve y pulsa Actualizar de nuevo.")
+                .setPositiveButton("Continuar") { _, _ ->
                     try {
                         startActivity(
                             Intent(
@@ -778,7 +778,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        toast("Downloading update…")
+        toast("Descargando actualización…")
         UpdateChecker.downloadApk(this, apkUrl) { file, error ->
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
@@ -812,7 +812,7 @@ class MainActivity : AppCompatActivity() {
         if (!accessibilityEnabled || unrestricted || batteryWarningShown) return
         batteryWarningShown = true
         android.app.AlertDialog.Builder(this)
-            .setTitle("Keep dictation running")
+            .setTitle("Mantener el dictado activo")
             .setMessage(
                 "Android's battery saver can shut down OpenWispr's background " +
                 "service to save power, which makes the mic overlay disappear until " +
@@ -823,7 +823,7 @@ class MainActivity : AppCompatActivity() {
                 "battery/app-sleep manager in your phone's own settings, separately " +
                 "from the Android dialog this opens."
             )
-            .setPositiveButton("Disable restrictions") { _, _ -> requestBatteryExemption() }
+            .setPositiveButton("Quitar restricciones") { _, _ -> requestBatteryExemption() }
             .setNegativeButton("Later", null)
             .show()
     }
@@ -847,7 +847,7 @@ class MainActivity : AppCompatActivity() {
             addView(input)
         }
         android.app.AlertDialog.Builder(this)
-            .setTitle("Groq API Key")
+            .setTitle("Clave API de Groq")
             .setView(container)
             .setPositiveButton("Guardar") { _, _ ->
                 prefs().edit().putString("api_key", input.text.toString().trim()).apply()
