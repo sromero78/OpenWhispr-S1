@@ -1,4 +1,4 @@
-name: Build APK
+# Modified in OpenWispr-S1 from EdiBianco/OpenWhispr. See ATTRIBUTION.md.\nname: Build APK
 
 on:
   push:
