@@ -26,7 +26,8 @@ Do not derive the channel only from UI text; keep it tied to the build/version m
 ## Already planned for this development branch
 - Local dictation history ("historial"), privacy-first and clearable.
 - Writing profiles.
-- Long-dictation visual warning around 4:30, with 5:00 as a soft warning threshold, not an automatic stop.
+- Automatic writing-profile detection by foreground app, with a temporary per-app session override from a long press on the overlay.
+- Hard 5-minute dictation limit: warning at 4:30, automatic stop and normal processing at 5:00.
 
 ## Non-regression requirement
 All work here remains subject to REGRESSION_TESTS.md. In particular:
@@ -43,8 +44,13 @@ Canary Next changes are compiled in CI before promotion to the public Canary bra
 ## Implemented in Canary 5 development
 - Spanish-first UI and command guidance.
 - Default trigger phrase: **Comando Whisper**.
-- Writing profiles: Normal, WhatsApp, Formal, Personalizado.
+- Writing profiles: Automático, Normal, WhatsApp / informal, Formal, Personalizado.
+- Stronger differentiation between conversational and formal writing, with visible examples in the profile selector.
+- Automatic app mapping: messaging apps use the conversational profile; Gmail, Samsung Email and Outlook use Formal; unknown apps fall back to Normal.
+- Long-press overlay profile override that lasts only while the same foreground app remains active.
 - Local text-only history, maximum 20 entries, clearable by the user.
 - Configurable idle bubble/dot color without resizing the fixed overlay host.
-- Long-dictation visual warnings at 4:30 and 5:00 without automatic cutoff.
+- Dot size range expanded up to 32 dp while preserving the fixed 84 dp outer host.
+- Hard 5-minute dictation limit: warning at 4:30, automatic stop and normal processing at 5:00.
+- Bottom system-navigation inset respected so lower settings content is not obscured by Samsung navigation buttons.
 - In-app build identity with channel and @sromero78 attribution.
