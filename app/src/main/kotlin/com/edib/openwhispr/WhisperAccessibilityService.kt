@@ -32,6 +32,7 @@ import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
@@ -74,7 +75,9 @@ class WhisperAccessibilityService : AccessibilityService() {
         private const val COLOR_FEEDBACK_BG = 0xEE1C1C1E.toInt()
         private const val COLOR_RING = 0xFFE8EAED.toInt()
         private const val LONG_WARNING_MS = 270_000L
-        private const val LONG_NOTICE_MS = 300_000L
+        private const val RECORDING_LIMIT_MS = 300_000L
+        private const val LONG_PRESS_MS = 550L
+        private const val PROFILE_MENU_HIDE_MS = 8_000L
     }
 
     private enum class State { IDLE, RECORDING, TRANSCRIBING }
@@ -86,6 +89,10 @@ class WhisperAccessibilityService : AccessibilityService() {
     private var dotExpired = false
     private var dotHideScheduled = false
     private var bubbleExpandedFromDot = false
+    private var currentForegroundPackage = ""
+    private var temporaryProfileKey: String? = null
+    private var temporaryProfilePackage: String? = null
+    private var profileMenuView: LinearLayout? = null
 
     // Two independent signals feed overlay visibility (OR'd together): an
     // accessibility-tree focus check (event-driven AND polled as a failsafe,
@@ -113,15 +120,18 @@ class WhisperAccessibilityService : AccessibilityService() {
         if (state == State.RECORDING) {
             stopPulse()
             startUrgentPulse()
-            showFeedback("4:30 · Dictado largo", 3500)
+            showFeedback("4:30 · Quedan 30 s", 3500)
         }
     }
 
-    private val longRecordingNotice = Runnable {
+    private val recordingLimit = Runnable {
         if (state == State.RECORDING) {
-            showFeedback("5:00 · Puedes seguir grabando", 4000)
+            showFeedback("5:00 · Límite alcanzado. Procesando…", 4000)
+            stopAndTranscribe()
         }
     }
+
+    private val hideProfileMenu = Runnable { removeProfileMenu() }
 
     private val hideDot = Runnable {
         dotHideScheduled = false
@@ -176,7 +186,9 @@ class WhisperAccessibilityService : AccessibilityService() {
         handler.removeCallbacks(focusPoller)
         handler.removeCallbacks(hideDot)
         handler.removeCallbacks(longRecordingWarning)
-        handler.removeCallbacks(longRecordingNotice)
+        handler.removeCallbacks(recordingLimit)
+        handler.removeCallbacks(hideProfileMenu)
+        removeProfileMenu()
         try {
             stopForeground(STOP_FOREGROUND_REMOVE)
         } catch (e: Exception) {
@@ -261,6 +273,7 @@ class WhisperAccessibilityService : AccessibilityService() {
     private fun refreshAccessibilityFocusSignal() {
         try {
             val root = rootInActiveWindow
+            updateForegroundPackage(root?.packageName?.toString())
             val focused = root?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
             accessibilityFocusSignal = focused != null && isEditableTextField(focused)
             focused?.recycle()
@@ -275,6 +288,39 @@ class WhisperAccessibilityService : AccessibilityService() {
     private fun isEditableTextField(node: AccessibilityNodeInfo): Boolean {
         val className = node.className?.toString().orEmpty()
         return node.isEditable || className.contains("EditText")
+    }
+
+    private fun updateForegroundPackage(packageName: String?) {
+        val next = packageName.orEmpty()
+        if (next.isBlank() || next == this.packageName || next == currentForegroundPackage) return
+
+        currentForegroundPackage = next
+        if (temporaryProfilePackage != null && temporaryProfilePackage != next) {
+            temporaryProfileKey = null
+            temporaryProfilePackage = null
+        }
+        removeProfileMenu()
+    }
+
+    private fun configuredProfileKey(): String =
+        prefs().getString("writing_profile", WritingProfiles.AUTO) ?: WritingProfiles.AUTO
+
+    private fun effectiveProfileKey(): String {
+        val temporary = temporaryProfileKey
+        if (temporary != null && temporaryProfilePackage == currentForegroundPackage) return temporary
+
+        val configured = configuredProfileKey()
+        return if (configured == WritingProfiles.AUTO) {
+            WritingProfiles.autoProfileForPackage(currentForegroundPackage)
+        } else {
+            configured
+        }
+    }
+
+    private fun profileSourceLabel(): String = when {
+        temporaryProfileKey != null && temporaryProfilePackage == currentForegroundPackage -> "temporal"
+        configuredProfileKey() == WritingProfiles.AUTO -> "automático"
+        else -> "fijo"
     }
 
     /** Fed by the overlay view's WindowInsets listener -- catches apps whose
@@ -376,7 +422,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         prefs().getInt("bubble_size_dp", BTN_DP).coerceIn(32, 72)
 
     private fun configuredDotDp(): Int =
-        prefs().getInt("dot_size_dp", 10).coerceIn(6, 18)
+        prefs().getInt("dot_size_dp", 10).coerceIn(6, 32)
 
     private fun idleColor(): Int =
         prefs().getInt("overlay_idle_color", COLOR_IDLE_DEFAULT)
@@ -589,27 +635,45 @@ class WhisperAccessibilityService : AccessibilityService() {
 
         var startX = 0; var startY = 0
         var touchX = 0f; var touchY = 0f
+        var longPressTriggered = false
+        var longPressRunnable: Runnable? = null
 
         overlay.setOnTouchListener { v, ev ->
             when (ev.action) {
                 MotionEvent.ACTION_DOWN -> {
                     startX = params.x; startY = params.y
                     touchX = ev.rawX; touchY = ev.rawY
+                    longPressTriggered = false
+                    longPressRunnable = Runnable {
+                        if (state == State.IDLE) {
+                            longPressTriggered = true
+                            showProfilePicker()
+                        }
+                    }.also { handler.postDelayed(it, LONG_PRESS_MS) }
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    params.x = startX + (ev.rawX - touchX).toInt()
-                    params.y = startY + (ev.rawY - touchY).toInt()
-                    wm.updateViewLayout(v, params)
-                    feedbackLayoutParams?.let {
-                        positionFeedback(it, params)
-                        wm.updateViewLayout(feedbackView, it)
+                    val moved = abs(ev.rawX - touchX) + abs(ev.rawY - touchY)
+                    if (moved >= TAP_THRESHOLD_DP * dp) {
+                        longPressRunnable?.let(handler::removeCallbacks)
+                    }
+                    if (!longPressTriggered) {
+                        params.x = startX + (ev.rawX - touchX).toInt()
+                        params.y = startY + (ev.rawY - touchY).toInt()
+                        wm.updateViewLayout(v, params)
+                        feedbackLayoutParams?.let {
+                            positionFeedback(it, params)
+                            wm.updateViewLayout(feedbackView, it)
+                        }
                     }
                     true
                 }
                 MotionEvent.ACTION_UP -> {
+                    longPressRunnable?.let(handler::removeCallbacks)
                     val moved = abs(ev.rawX - touchX) + abs(ev.rawY - touchY)
-                    if (moved < TAP_THRESHOLD_DP * dp) {
+                    if (longPressTriggered) {
+                        // The long press opened the temporary-profile chooser.
+                    } else if (moved < TAP_THRESHOLD_DP * dp) {
                         onTap()
                     } else {
                         val currentWidth = params.width
@@ -622,6 +686,10 @@ class WhisperAccessibilityService : AccessibilityService() {
                             wm.updateViewLayout(feedbackView, it)
                         }
                     }
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    longPressRunnable?.let(handler::removeCallbacks)
                     true
                 }
                 else -> false
@@ -656,6 +724,96 @@ class WhisperAccessibilityService : AccessibilityService() {
         feedbackView = feedback
         layoutParams = params
         feedbackLayoutParams = feedbackParams
+    }
+
+    private fun showProfilePicker() {
+        removeProfileMenu()
+
+        val appName = WritingProfiles.appLabel(currentForegroundPackage)
+        val current = effectiveProfileKey()
+        val source = profileSourceLabel()
+        val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+
+        val menu = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding((14 * dp).toInt(), (10 * dp).toInt(), (14 * dp).toInt(), (10 * dp).toInt())
+            background = pill(0xF21C1C1E.toInt())
+        }
+
+        menu.addView(TextView(this).apply {
+            text = "Perfil: ${WritingProfiles.label(current)} · $source\n$appName"
+            textSize = 13f
+            setTextColor(Color.WHITE)
+            setPadding((8 * dp).toInt(), (4 * dp).toInt(), (8 * dp).toInt(), (8 * dp).toInt())
+        })
+
+        fun addChoice(label: String, key: String?) {
+            menu.addView(TextView(this).apply {
+                text = label
+                textSize = 15f
+                setTextColor(Color.WHITE)
+                setPadding((10 * dp).toInt(), (10 * dp).toInt(), (10 * dp).toInt(), (10 * dp).toInt())
+                setOnClickListener {
+                    if (key == null) {
+                        temporaryProfileKey = null
+                        temporaryProfilePackage = null
+                    } else {
+                        temporaryProfileKey = key
+                        temporaryProfilePackage = currentForegroundPackage
+                    }
+                    removeProfileMenu()
+                    val effective = effectiveProfileKey()
+                    val effectiveSource = profileSourceLabel()
+                    showFeedback("Perfil: ${WritingProfiles.label(effective)} · $effectiveSource", 3000)
+                }
+            })
+        }
+
+        addChoice("Usar perfil configurado", null)
+        addChoice("Normal", WritingProfiles.NORMAL)
+        addChoice("WhatsApp / informal", WritingProfiles.WHATSAPP)
+        addChoice("Formal", WritingProfiles.FORMAL)
+        addChoice("Personalizado", WritingProfiles.CUSTOM)
+
+        val bubble = layoutParams
+        val menuWidth = (236 * dp).toInt()
+        val params = WindowManager.LayoutParams(
+            menuWidth,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            overlayType(),
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            val margin = (MARGIN_DP * dp).toInt()
+            x = if (bubble != null && bubble.x + menuWidth > screenW - margin) {
+                (screenW - menuWidth - margin).coerceAtLeast(margin)
+            } else {
+                (bubble?.x ?: margin).coerceAtLeast(margin)
+            }
+            y = ((bubble?.y ?: screenH / 2) - (90 * dp).toInt())
+                .coerceIn(margin, (screenH - (340 * dp).toInt()).coerceAtLeast(margin))
+        }
+
+        try {
+            wm.addView(menu, params)
+            profileMenuView = menu
+            handler.removeCallbacks(hideProfileMenu)
+            handler.postDelayed(hideProfileMenu, PROFILE_MENU_HIDE_MS)
+        } catch (e: Exception) {
+            Log.e(TAG, "Unable to show profile picker", e)
+            showFeedback("No se pudo abrir el selector de perfil")
+        }
+    }
+
+    private fun removeProfileMenu() {
+        handler.removeCallbacks(hideProfileMenu)
+        val menu = profileMenuView ?: return
+        profileMenuView = null
+        try {
+            (getSystemService(WINDOW_SERVICE) as WindowManager).removeView(menu)
+        } catch (_: Exception) {
+        }
     }
 
     private fun removeOverlay() {
@@ -815,9 +973,9 @@ class WhisperAccessibilityService : AccessibilityService() {
         updateOverlayVisibility()
         startPulse()
         handler.removeCallbacks(longRecordingWarning)
-        handler.removeCallbacks(longRecordingNotice)
+        handler.removeCallbacks(recordingLimit)
         handler.postDelayed(longRecordingWarning, LONG_WARNING_MS)
-        handler.postDelayed(longRecordingNotice, LONG_NOTICE_MS)
+        handler.postDelayed(recordingLimit, RECORDING_LIMIT_MS)
 
         thread {
             val buf = ByteArray(bufSize)
@@ -831,7 +989,7 @@ class WhisperAccessibilityService : AccessibilityService() {
     private fun stopAndTranscribe() {
         state = State.TRANSCRIBING
         handler.removeCallbacks(longRecordingWarning)
-        handler.removeCallbacks(longRecordingNotice)
+        handler.removeCallbacks(recordingLimit)
         stopPulse()
         setAppearance(COLOR_BUSY)
         setIcon(R.drawable.ic_mic)
@@ -936,7 +1094,7 @@ class WhisperAccessibilityService : AccessibilityService() {
             }
 
             val customInstructions = prefs().getString("custom_instructions", "") ?: ""
-            val profileKey = prefs().getString("writing_profile", WritingProfiles.NORMAL) ?: WritingProfiles.NORMAL
+            val profileKey = effectiveProfileKey()
             val profileCustom = prefs().getString("profile_custom_instructions", "") ?: ""
             val profileInstructions = WritingProfiles.instructions(profileKey, profileCustom)
             val refinements = listOf(profileInstructions, customInstructions)
@@ -1089,7 +1247,7 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     private fun goIdle() {
         handler.removeCallbacks(longRecordingWarning)
-        handler.removeCallbacks(longRecordingNotice)
+        handler.removeCallbacks(recordingLimit)
         state = State.IDLE
         bubbleExpandedFromDot = false
         setBusy(false)
