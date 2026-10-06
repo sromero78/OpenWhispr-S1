@@ -237,7 +237,7 @@ class MainActivity : AppCompatActivity() {
         }
         dictationContainer.addView(postProcessRow)
 
-        customInstructionsRow = settingsRow("Instrucciones personalizadas", "Añade reglas propias al postprocesado") {
+        customInstructionsRow = settingsRow("Instrucciones globales", "Se aplican además del perfil de escritura") {
             promptCustomInstructions()
         }
         customInstructionsRowSub = customInstructionsRow.findViewWithTag("subtitle")
@@ -247,10 +247,21 @@ class MainActivity : AppCompatActivity() {
 
         val writingProfileRow = settingsRow(
             "Perfil de escritura",
-            WritingProfiles.label(prefs().getString("writing_profile", WritingProfiles.NORMAL) ?: WritingProfiles.NORMAL)
+            WritingProfiles.label(prefs().getString("writing_profile", WritingProfiles.AUTO) ?: WritingProfiles.AUTO)
         ) { showWritingProfileDialog() }
         writingProfileRowSub = writingProfileRow.findViewWithTag("subtitle")
+        writingProfileRowSub.maxLines = 2
         dictationContainer.addView(writingProfileRow)
+
+        dictationContainer.addView(settingsRow(
+            "Cambio temporal de perfil",
+            "Mantén pulsada la burbuja o el punto; se mantiene hasta salir de la app activa"
+        ))
+
+        dictationContainer.addView(settingsRow(
+            "Duración máxima por dictado",
+            "5 minutos · aviso a los 4:30 y procesamiento automático al llegar al límite"
+        ))
 
         val historyRow = settingsRow(
             "Historial de dictados",
@@ -331,7 +342,7 @@ class MainActivity : AppCompatActivity() {
             "Tamaño del punto",
             "${prefs().getInt("dot_size_dp", 10)} dp"
         ) {
-            showIntSlider("Tamaño del punto", "dot_size_dp", 6, 18, 10, " dp") { value ->
+            showIntSlider("Tamaño del punto", "dot_size_dp", 6, 32, 10, " dp") { value ->
                 dotSizeSub.text = "$value dp"
             }
         }
@@ -635,8 +646,11 @@ class MainActivity : AppCompatActivity() {
         else
             customInstructions.replace("\n", " ")
 
-        val writingProfile = prefs().getString("writing_profile", WritingProfiles.NORMAL) ?: WritingProfiles.NORMAL
-        writingProfileRowSub.text = WritingProfiles.label(writingProfile)
+        val writingProfile = prefs().getString("writing_profile", WritingProfiles.AUTO) ?: WritingProfiles.AUTO
+        writingProfileRowSub.text = if (writingProfile == WritingProfiles.AUTO)
+            "Automático · según la app activa"
+        else
+            WritingProfiles.label(writingProfile)
         val historyCount = DictationHistory.load(prefs()).size
         historyRowSub.text = if (historyCount == 0)
             "Sin dictados guardados"
@@ -880,8 +894,8 @@ class MainActivity : AppCompatActivity() {
             setText(prefs().getString("custom_instructions", ""))
         }
         android.app.AlertDialog.Builder(this)
-            .setTitle("Instrucciones personalizadas")
-            .setMessage("Se añaden a las reglas internas de limpieza de OpenWispr. No sustituyen las reglas de seguridad, formato ni autocorrección.")
+            .setTitle("Instrucciones globales")
+            .setMessage("Se aplican a todos los perfiles de escritura, además de las reglas internas de limpieza de OpenWispr. No sustituyen las reglas de seguridad, formato ni autocorrección.")
             .setView(input.apply { setPadding(dp(24), dp(8), dp(24), dp(8)) })
             .setPositiveButton("Guardar") { _, _ ->
                 prefs().edit().putString("custom_instructions", input.text.toString().trim()).apply()
@@ -932,11 +946,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showWritingProfileDialog() {
-        val current = prefs().getString("writing_profile", WritingProfiles.NORMAL) ?: WritingProfiles.NORMAL
+        val current = prefs().getString("writing_profile", WritingProfiles.AUTO) ?: WritingProfiles.AUTO
         val checked = WritingProfiles.keys.indexOf(current).coerceAtLeast(0)
 
         android.app.AlertDialog.Builder(this)
             .setTitle("Perfil de escritura")
+            .setMessage(WritingProfiles.examplesText() + "\n\nEn Automático, OpenWispr usa un perfil conversacional en mensajería y Formal en las principales apps de correo. Mantén pulsada la burbuja para forzar otro perfil solo durante la sesión en la app actual.")
             .setSingleChoiceItems(WritingProfiles.labels, checked) { dialog, which ->
                 val key = WritingProfiles.keys[which]
                 prefs().edit().putString("writing_profile", key).apply()
