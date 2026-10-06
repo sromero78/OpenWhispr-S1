@@ -4,6 +4,15 @@
 
 # OpenWispr-S1
 
+> [!WARNING]
+> **Project status: active maturation.**
+>
+> OpenWispr-S1 is functional, but it is still under active development and validation. Builds may contain bugs, change frequently, and include behavior that has not yet been broadly tested across devices.
+>
+> **General or production use is not recommended yet.** Canary and Beta builds are intended for testing, and the APKs currently published here should be treated as development builds.
+>
+> When a Stable release has completed the project's validation process, it will be clearly identified as the recommended build for normal use.
+
 OpenWispr-S1 is an **independent derivative project based on [OpenWhispr by EdiBianco](https://github.com/EdiBianco/OpenWhispr)**, distributed under the Apache License 2.0.
 
 This repository is not affiliated with or endorsed by the original maintainer. If you want the history, rationale and documentation of the original project, please visit the upstream repository above.
