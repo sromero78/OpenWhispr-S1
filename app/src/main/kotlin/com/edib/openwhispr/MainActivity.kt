@@ -970,14 +970,50 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showStyleExamplesDialog() {
-        val keys = arrayOf(WritingProfiles.NORMAL, WritingProfiles.WHATSAPP, WritingProfiles.FORMAL)
-        val labels = arrayOf("Normal", "WhatsApp / informal", "Formal")
-        android.app.AlertDialog.Builder(this)
+        val container = vertical(dp(8)).apply {
+            setPadding(dp(8), 0, dp(8), 0)
+        }
+        listOf(
+            WritingProfiles.NORMAL to "Normal",
+            WritingProfiles.WHATSAPP to "WhatsApp / informal",
+            WritingProfiles.FORMAL to "Formal"
+        ).forEach { (key, label) ->
+            val row = TextView(this).apply {
+                text = label
+                textSize = 18f
+                setPadding(dp(24), dp(16), dp(24), dp(16))
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    (parent as? ViewGroup)?.let { parentView ->
+                        var candidate: ViewParent? = parentView.parent
+                        while (candidate != null) {
+                            if (candidate is android.widget.FrameLayout) break
+                            candidate = candidate.parent
+                        }
+                    }
+                    promptProfileExample(key)
+                }
+            }
+            container.addView(row)
+        }
+
+        val dialog = android.app.AlertDialog.Builder(this)
             .setTitle("Ejemplos de estilo")
-            .setMessage("Cada ejemplo enseña al postprocesado el registro y el grado de reescritura que prefieres. Automático usa el ejemplo del perfil que detecte.")
-            .setItems(labels) { _, which -> promptProfileExample(keys[which]) }
+            .setMessage("Elige el perfil cuyo ejemplo quieres editar. Automático usará el ejemplo del perfil que detecte.")
+            .setView(container)
             .setNegativeButton("Cerrar", null)
-            .show()
+            .create()
+
+        for (i in 0 until container.childCount) {
+            val row = container.getChildAt(i)
+            val key = listOf(WritingProfiles.NORMAL, WritingProfiles.WHATSAPP, WritingProfiles.FORMAL)[i]
+            row.setOnClickListener {
+                dialog.dismiss()
+                promptProfileExample(key)
+            }
+        }
+        dialog.show()
     }
 
     private fun promptProfileExample(key: String) {
