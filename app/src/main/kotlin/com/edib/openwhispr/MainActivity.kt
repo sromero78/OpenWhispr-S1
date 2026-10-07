@@ -247,7 +247,7 @@ class MainActivity : AppCompatActivity() {
 
         val writingProfileRow = settingsRow(
             "Perfil de escritura",
-            WritingProfiles.label(prefs().getString("writing_profile", WritingProfiles.WHATSAPP) ?: WritingProfiles.WHATSAPP)
+            WritingProfiles.label(prefs().getString("writing_profile", WritingProfiles.AUTO) ?: WritingProfiles.AUTO)
         ) { showWritingProfileDialog() }
         writingProfileRowSub = writingProfileRow.findViewWithTag("subtitle")
         writingProfileRowSub.maxLines = 2
@@ -646,7 +646,7 @@ class MainActivity : AppCompatActivity() {
         else
             customInstructions.replace("\n", " ")
 
-        val writingProfile = prefs().getString("writing_profile", WritingProfiles.WHATSAPP) ?: WritingProfiles.WHATSAPP
+        val writingProfile = prefs().getString("writing_profile", WritingProfiles.AUTO) ?: WritingProfiles.AUTO
         writingProfileRowSub.text = if (writingProfile == WritingProfiles.AUTO)
             "Automático · según la app activa"
         else
@@ -946,7 +946,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showWritingProfileDialog() {
-        val current = prefs().getString("writing_profile", WritingProfiles.WHATSAPP) ?: WritingProfiles.WHATSAPP
+        val current = prefs().getString("writing_profile", WritingProfiles.AUTO) ?: WritingProfiles.AUTO
         val checked = WritingProfiles.keys.indexOf(current).coerceAtLeast(0)
 
         android.app.AlertDialog.Builder(this)
