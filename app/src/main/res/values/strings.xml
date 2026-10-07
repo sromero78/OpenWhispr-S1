@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Modified in OpenWispr-S1 from EdiBianco/OpenWhispr. See ATTRIBUTION.md. -->
 <resources>
-    <string name="app_name">OpenWispr Canary</string>
-    <string name="accessibility_description">Dictation: records audio, transcribes, and inserts text into focused fields.</string>
-    <string name="notification_channel_name">OpenWispr Canary background service</string>
-    <string name="notification_channel_description">Keeps the dictation overlay running in the background</string>
-    <string name="notification_content_title">OpenWispr Canary is running</string>
-    <string name="notification_content_text">Tap the floating mic to dictate</string>
+    <string name="app_name">OpenWispr Preview</string>
+    <string name="accessibility_description">Dictado: graba audio, lo transcribe e inserta el texto en el campo activo.</string>
+    <string name="notification_channel_name">Servicio en segundo plano de OpenWispr Preview</string>
+    <string name="notification_channel_description">Mantiene disponible la burbuja flotante de dictado</string>
+    <string name="notification_content_title">OpenWispr Preview está activo</string>
+    <string name="notification_content_text">Toca la burbuja flotante para dictar</string>
 </resources>
