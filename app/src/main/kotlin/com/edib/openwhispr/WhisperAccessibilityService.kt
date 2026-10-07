@@ -1096,7 +1096,8 @@ class WhisperAccessibilityService : AccessibilityService() {
             val customInstructions = prefs().getString("custom_instructions", "") ?: ""
             val profileKey = effectiveProfileKey()
             val profileCustom = prefs().getString("profile_custom_instructions", "") ?: ""
-            val profileInstructions = WritingProfiles.instructions(profileKey, profileCustom)
+            val profileExample = prefs().getString(WritingProfiles.examplePreferenceKey(profileKey), "") ?: ""
+            val profileInstructions = WritingProfiles.instructions(profileKey, profileCustom, profileExample)
             val refinements = listOf(profileInstructions, customInstructions)
                 .filter { it.isNotBlank() }
                 .joinToString("\n\n")
