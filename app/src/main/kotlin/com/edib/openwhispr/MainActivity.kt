@@ -958,6 +958,32 @@ class MainActivity : AppCompatActivity() {
                 writingProfileRowSub.text = WritingProfiles.label(key)
                 dialog.dismiss()
                 if (key == WritingProfiles.CUSTOM) promptCustomProfileInstructions()
+                else if (key != WritingProfiles.AUTO) promptProfileExample(key)
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun promptProfileExample(key: String) {
+        val prefKey = WritingProfiles.examplePreferenceKey(key)
+        val current = prefs().getString(prefKey, "")?.takeIf { it.isNotBlank() }
+            ?: WritingProfiles.defaultExample(key)
+        val input = EditText(this).apply {
+            hint = "Dictado: ...\nResultado: ..."
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            minLines = 6
+            gravity = Gravity.TOP or Gravity.START
+            setText(current)
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Ejemplo · " + WritingProfiles.label(key))
+            .setMessage("Puedes adaptar este ejemplo a tu forma de escribir. El modelo imitará el registro y el grado de reescritura, no los hechos del ejemplo.")
+            .setView(input.apply { setPadding(dp(24), dp(8), dp(24), dp(8)) })
+            .setPositiveButton("Guardar") { _, _ ->
+                prefs().edit().putString(prefKey, input.text.toString().trim()).apply()
+            }
+            .setNeutralButton("Restaurar") { _, _ ->
+                prefs().edit().remove(prefKey).apply()
             }
             .setNegativeButton("Cancelar", null)
             .show()
