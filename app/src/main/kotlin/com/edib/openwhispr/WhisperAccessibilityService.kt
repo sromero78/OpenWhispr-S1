@@ -303,7 +303,7 @@ class WhisperAccessibilityService : AccessibilityService() {
     }
 
     private fun configuredProfileKey(): String =
-        prefs().getString("writing_profile", WritingProfiles.AUTO) ?: WritingProfiles.AUTO
+        prefs().getString("writing_profile", WritingProfiles.WHATSAPP) ?: WritingProfiles.WHATSAPP
 
     private fun effectiveProfileKey(): String {
         val temporary = temporaryProfileKey
