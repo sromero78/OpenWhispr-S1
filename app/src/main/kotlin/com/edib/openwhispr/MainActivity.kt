@@ -984,16 +984,6 @@ class MainActivity : AppCompatActivity() {
                 setPadding(dp(24), dp(16), dp(24), dp(16))
                 isClickable = true
                 isFocusable = true
-                setOnClickListener {
-                    (parent as? ViewGroup)?.let { parentView ->
-                        var candidate: ViewParent? = parentView.parent
-                        while (candidate != null) {
-                            if (candidate is android.widget.FrameLayout) break
-                            candidate = candidate.parent
-                        }
-                    }
-                    promptProfileExample(key)
-                }
             }
             container.addView(row)
         }
