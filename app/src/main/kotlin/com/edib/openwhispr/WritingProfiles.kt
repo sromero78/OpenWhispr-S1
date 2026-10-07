@@ -51,7 +51,17 @@ object WritingProfiles {
         else -> "esta app"
     }
 
-    fun instructions(key: String, custom: String): String = when (key) {
+    fun defaultExample(key: String): String = when (key) {
+        WHATSAPP -> "Dictado: Vale, pues cuando tengas un momento me dices si finalmente puedes venir.\nResultado: Vale, cuando puedas me dices si al final vienes."
+        FORMAL -> "Dictado: Mañana no puedo ir porque tengo una reunión y seguramente termine bastante tarde.\nResultado: Mañana no podré asistir, ya que tengo una reunión y previsiblemente terminaré bastante tarde."
+        NORMAL -> "Dictado: Mañana no puedo ir porque tengo una reunión y seguramente termine bastante tarde.\nResultado: Mañana no puedo ir porque tengo una reunión y seguramente termine bastante tarde."
+        else -> ""
+    }
+
+    fun examplePreferenceKey(key: String): String = "profile_example_$key"
+
+    fun instructions(key: String, custom: String, example: String = ""): String {
+        val base = when (key) {
         WHATSAPP -> """
             Writing profile: conversational / instant messaging.
             Rewrite the transcript so it reads like a natural message a real person would actually send in WhatsApp.
@@ -83,6 +93,9 @@ object WritingProfiles {
 
         CUSTOM -> custom.trim()
         else -> ""
+        }
+        val selectedExample = example.trim().ifEmpty { defaultExample(key) }
+        return if (selectedExample.isEmpty() || key == CUSTOM) base else "$base\n\nUser-editable style example (imitate its register and degree of rewriting, not its facts):\n$selectedExample"
     }
 
     fun examplesText(): String = """
