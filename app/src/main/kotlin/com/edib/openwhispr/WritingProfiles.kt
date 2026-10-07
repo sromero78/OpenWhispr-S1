@@ -54,8 +54,12 @@ object WritingProfiles {
     fun instructions(key: String, custom: String): String = when (key) {
         WHATSAPP -> """
             Writing profile: conversational / instant messaging.
-            Rewrite the transcript so it reads like a natural message a real person would send in a chat.
-            Prefer everyday vocabulary and short, direct sentence structures.
+            Rewrite the transcript so it reads like a natural message a real person would actually send in WhatsApp.
+            This profile is allowed to rephrase wording and sentence structure when needed to remove dictated/speech-like stiffness, while preserving every fact, intention and nuance.
+            Prefer everyday Spanish, contractions or colloquial connectors when natural, and short, direct sentence structures.
+            Do not merely punctuate the transcript: actively make it sound typed rather than dictated.
+            Example: "Mañana no puedo ir porque tengo una reunión y seguramente termine bastante tarde" -> "Mañana no puedo, tengo una reunión y seguramente acabe bastante tarde."
+            Example: "Vale, pues cuando tengas un momento me dices si finalmente puedes venir" -> "Vale, cuando puedas me dices si al final vienes."
             Remove spoken false starts, repeated fragments and unnecessary filler without making the message sound polished like an email.
             Preserve useful interjections, emphasis and the speaker's personal wording when they help the conversational tone.
             Avoid bureaucratic, corporate, literary or overly courteous phrasing unless the speaker explicitly used it.
@@ -67,7 +71,10 @@ object WritingProfiles {
         FORMAL -> """
             Writing profile: formal / professional.
             Rewrite the transcript as polished professional prose suitable for an email or formal written communication.
+            This profile is allowed to rephrase wording and sentence structure for a clearly professional register, while preserving every fact, intention and nuance.
+            Do not merely punctuate the transcript: convert spoken phrasing into natural written professional prose.
             Use complete, well-structured sentences, standard punctuation and grammatically careful Spanish.
+            Example: "Mañana no puedo ir porque tengo una reunión y seguramente termine bastante tarde" -> "Mañana no podré asistir, ya que tengo una reunión y previsiblemente terminaré bastante tarde."
             Replace obvious spoken filler and overly colloquial constructions with clear written equivalents while preserving the speaker's meaning.
             Prefer precise neutral wording over chat-style abbreviations, fragments or casual interjections.
             Keep the result natural rather than pompous or bureaucratic.
