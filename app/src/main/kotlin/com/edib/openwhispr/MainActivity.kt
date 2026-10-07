@@ -254,6 +254,11 @@ class MainActivity : AppCompatActivity() {
         dictationContainer.addView(writingProfileRow)
 
         dictationContainer.addView(settingsRow(
+            "Ejemplos de estilo",
+            "Edita cómo debe escribir Normal, WhatsApp / informal y Formal"
+        ) { showStyleExamplesDialog() })
+
+        dictationContainer.addView(settingsRow(
             "Cambio temporal de perfil",
             "Mantén pulsada la burbuja o el punto; se mantiene hasta salir de la app activa"
         ))
@@ -961,6 +966,17 @@ class MainActivity : AppCompatActivity() {
                 else if (key != WritingProfiles.AUTO) promptProfileExample(key)
             }
             .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun showStyleExamplesDialog() {
+        val keys = arrayOf(WritingProfiles.NORMAL, WritingProfiles.WHATSAPP, WritingProfiles.FORMAL)
+        val labels = arrayOf("Normal", "WhatsApp / informal", "Formal")
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Ejemplos de estilo")
+            .setMessage("Cada ejemplo enseña al postprocesado el registro y el grado de reescritura que prefieres. Automático usa el ejemplo del perfil que detecte.")
+            .setItems(labels) { _, which -> promptProfileExample(keys[which]) }
+            .setNegativeButton("Cerrar", null)
             .show()
     }
 
