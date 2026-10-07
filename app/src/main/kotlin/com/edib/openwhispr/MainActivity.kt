@@ -3,6 +3,9 @@ package com.edib.openwhispr
 
 import android.Manifest
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Color
@@ -20,6 +23,8 @@ import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.android.material.materialswitch.MaterialSwitch
@@ -46,6 +51,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var keyRowSub: TextView
     private lateinit var customInstructionsRowSub: TextView
     private lateinit var customInstructionsRow: LinearLayout
+    private lateinit var writingProfileRowSub: TextView
+    private lateinit var historyRowSub: TextView
+    private lateinit var overlayColorRowSub: TextView
     private lateinit var modelContainer: LinearLayout
     private lateinit var voiceCommandsDetailContainer: LinearLayout
     private lateinit var triggerPhraseRowSub: TextView
@@ -95,15 +103,15 @@ class MainActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(dp(40), dp(40)).apply { marginEnd = dp(12) }
         })
         header.addView(TextView(this).apply {
-            text = "OpenWispr Canary"
+            text = "OpenWispr"
             textSize = 32f
         })
         outer.addView(header)
 
         tabLayout = TabLayout(this).apply {
-            addTab(newTab().setText("Status"))
-            addTab(newTab().setText("Dictation"))
-            addTab(newTab().setText("Settings"))
+            addTab(newTab().setText("Estado"))
+            addTab(newTab().setText("Dictado"))
+            addTab(newTab().setText("Ajustes"))
             addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
                 override fun onTabSelected(tab: TabLayout.Tab) { showTab(tab.position) }
                 override fun onTabUnselected(tab: TabLayout.Tab) {}
@@ -118,12 +126,12 @@ class MainActivity : AppCompatActivity() {
 
         // ================= Status tab =================
 
-        val statusRow = settingsRow("Status", "Checking...")
+        val statusRow = settingsRow("Estado", "Comprobando...")
         statusSubtitle = statusRow.findViewWithTag("subtitle")
         statusContainer.addView(statusRow)
 
         // --- Setup checklist card ---
-        setupCollapsedRow = settingsRow("Setup", "Checking...") {
+        setupCollapsedRow = settingsRow("Configuración", "Comprobando...") {
             setupExpanded = !setupExpanded
             refresh()
         }
@@ -138,7 +146,7 @@ class MainActivity : AppCompatActivity() {
         statusContainer.addView(setupDoneSummary)
 
         audioDot = statusDot()
-        audioRow = settingsRow("Audio permission", "Checking...", leading = audioDot) {
+        audioRow = settingsRow("Permiso de micrófono", "Comprobando...", leading = audioDot) {
             if (!hasPerm(Manifest.permission.RECORD_AUDIO)) {
                 ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 1)
             }
@@ -147,7 +155,7 @@ class MainActivity : AppCompatActivity() {
         statusContainer.addView(audioRow)
 
         accDot = statusDot()
-        accRow = settingsRow("Accessibility service", "Checking...", leading = accDot) {
+        accRow = settingsRow("Servicio de accesibilidad", "Comprobando...", leading = accDot) {
             val alreadyEnabled = WhisperAccessibilityService.instance != null
             if (!alreadyEnabled && android.os.Build.VERSION.SDK_INT >= 33) {
                 showRestrictedSettingsHelp()
@@ -159,7 +167,7 @@ class MainActivity : AppCompatActivity() {
         statusContainer.addView(accRow)
 
         accCaption = TextView(this).apply {
-            text = "Needed to detect the focused text field and insert the cleaned-up text there."
+            text = "Necesario para detectar el campo de texto activo e insertar ahí el texto procesado."
             textSize = 12f
             setTextColor(attrColor(android.R.attr.textColorSecondary))
             alpha = 0.8f
@@ -168,7 +176,7 @@ class MainActivity : AppCompatActivity() {
         statusContainer.addView(accCaption)
 
         batteryDot = statusDot()
-        batteryRow = settingsRow("Battery optimization", "Checking...", leading = batteryDot) {
+        batteryRow = settingsRow("Optimización de batería", "Comprobando...", leading = batteryDot) {
             requestBatteryExemption()
         }
         batteryRowSub = batteryRow.findViewWithTag("subtitle")
@@ -181,8 +189,8 @@ class MainActivity : AppCompatActivity() {
             isClickable = false
         }
         val serviceRow = settingsRow(
-            "Background service",
-            "Pause the mic overlay without disabling accessibility",
+            "Servicio en segundo plano",
+            "Pausa la burbuja sin desactivar Accesibilidad",
             serviceSwitch
         ) {
             val newVal = !serviceSwitch.isChecked
@@ -194,14 +202,14 @@ class MainActivity : AppCompatActivity() {
 
         // ================= Dictation tab =================
 
-        dictationContainer.addView(sectionHeader("Engine"))
+        dictationContainer.addView(sectionHeader("Motor"))
 
         val isCloud = !prefs().getBoolean("use_local", true)
         val cloudSwitch = MaterialSwitch(this).apply {
             isChecked = isCloud
             isClickable = false
         }
-        val cloudRow = settingsRow("Use cloud transcription", "Requires Groq API key", cloudSwitch) {
+        val cloudRow = settingsRow("Usar transcripción en la nube", "Requiere una clave API de Groq", cloudSwitch) {
             val newCloud = !cloudSwitch.isChecked
             prefs().edit().putBoolean("use_local", !newCloud).apply()
             cloudSwitch.isChecked = newCloud
@@ -210,18 +218,18 @@ class MainActivity : AppCompatActivity() {
         dictationContainer.addView(cloudRow)
 
         modelContainer = vertical(0)
-        modelContainer.addView(sectionHeader("Local models"))
+        modelContainer.addView(sectionHeader("Modelos locales"))
         for (m in MODEL_CATALOG) modelContainer.addView(buildModelRow(m))
         dictationContainer.addView(modelContainer)
 
-        dictationContainer.addView(sectionHeader("Post-Processing"))
+        dictationContainer.addView(sectionHeader("Postprocesado"))
 
         val isPostProcessing = prefs().getBoolean("use_post_processing", false)
         val postProcessSwitch = MaterialSwitch(this).apply {
             isChecked = isPostProcessing
             isClickable = false
         }
-        val postProcessRow = settingsRow("Cleanup transcript", "Uses Groq Chat API to fix grammar and punctuation", postProcessSwitch) {
+        val postProcessRow = settingsRow("Limpiar transcripción", "Usa Groq para corregir gramática y puntuación", postProcessSwitch) {
             val newVal = !postProcessSwitch.isChecked
             prefs().edit().putBoolean("use_post_processing", newVal).apply()
             postProcessSwitch.isChecked = newVal
@@ -229,7 +237,7 @@ class MainActivity : AppCompatActivity() {
         }
         dictationContainer.addView(postProcessRow)
 
-        customInstructionsRow = settingsRow("Add custom instructions", "Tap to add extra refinements") {
+        customInstructionsRow = settingsRow("Instrucciones globales", "Se aplican además del perfil de escritura") {
             promptCustomInstructions()
         }
         customInstructionsRowSub = customInstructionsRow.findViewWithTag("subtitle")
@@ -237,7 +245,32 @@ class MainActivity : AppCompatActivity() {
         customInstructionsRowSub.ellipsize = android.text.TextUtils.TruncateAt.END
         dictationContainer.addView(customInstructionsRow)
 
-        dictationContainer.addView(sectionHeader("Voice Commands"))
+        val writingProfileRow = settingsRow(
+            "Perfil de escritura",
+            WritingProfiles.label(prefs().getString("writing_profile", WritingProfiles.AUTO) ?: WritingProfiles.AUTO)
+        ) { showWritingProfileDialog() }
+        writingProfileRowSub = writingProfileRow.findViewWithTag("subtitle")
+        writingProfileRowSub.maxLines = 2
+        dictationContainer.addView(writingProfileRow)
+
+        dictationContainer.addView(settingsRow(
+            "Cambio temporal de perfil",
+            "Mantén pulsada la burbuja o el punto; se mantiene hasta salir de la app activa"
+        ))
+
+        dictationContainer.addView(settingsRow(
+            "Duración máxima por dictado",
+            "5 minutos · aviso a los 4:30 y procesamiento automático al llegar al límite"
+        ))
+
+        val historyRow = settingsRow(
+            "Historial de dictados",
+            "Hasta ${DictationHistory.MAX_ITEMS} textos guardados solo en este dispositivo"
+        ) { showHistoryDialog() }
+        historyRowSub = historyRow.findViewWithTag("subtitle")
+        dictationContainer.addView(historyRow)
+
+        dictationContainer.addView(sectionHeader("Comandos de voz"))
 
         val isVoiceCommands = prefs().getBoolean("voice_commands_enabled", false)
         val voiceCommandsSwitch = MaterialSwitch(this).apply {
@@ -245,8 +278,8 @@ class MainActivity : AppCompatActivity() {
             isClickable = false
         }
         val voiceCommandsRow = settingsRow(
-            "Voice commands",
-            "Say a trigger phrase to translate, summarize, and more",
+            "Comandos de voz",
+            "Usa una frase de activación para resumir, traducir y más",
             voiceCommandsSwitch
         ) {
             val newVal = !voiceCommandsSwitch.isChecked
@@ -258,32 +291,32 @@ class MainActivity : AppCompatActivity() {
 
         voiceCommandsDetailContainer = vertical(0)
 
-        val triggerPhraseRow = settingsRow("Trigger phrase", "Tap to change") { promptTriggerPhrase() }
+        val triggerPhraseRow = settingsRow("Frase de activación", "Toca para cambiarla") { promptTriggerPhrase() }
         triggerPhraseRowSub = triggerPhraseRow.findViewWithTag("subtitle")
         voiceCommandsDetailContainer.addView(triggerPhraseRow)
 
-        val examplesRow = settingsRow("Command examples", "See what you can say") { showCommandExamples() }
+        val examplesRow = settingsRow("Ejemplos de comandos", "Consulta qué puedes decir") { showCommandExamples() }
         voiceCommandsDetailContainer.addView(examplesRow)
 
         dictationContainer.addView(voiceCommandsDetailContainer)
 
         // ================= Settings tab =================
 
-        settingsContainer.addView(sectionHeader("Settings"))
+        settingsContainer.addView(sectionHeader("Ajustes"))
 
-        val keyRow = settingsRow("Groq API Key", "Tap to set") { promptApiKey() }
+        val keyRow = settingsRow("Clave API de Groq", "Toca para configurarla") { promptApiKey() }
         keyRowSub = keyRow.findViewWithTag("subtitle")
         settingsContainer.addView(keyRow)
 
-        settingsContainer.addView(sectionHeader("Overlay"))
+        settingsContainer.addView(sectionHeader("Burbuja flotante"))
 
         val minimizeSwitch = MaterialSwitch(this).apply {
             isChecked = prefs().getBoolean("minimize_to_dot", false)
             isClickable = false
         }
         settingsContainer.addView(settingsRow(
-            "Minimize to dot",
-            "Show a small point outside text fields instead of hiding completely",
+            "Minimizar a punto",
+            "Muestra un punto pequeño en lugar de ocultarse por completo",
             minimizeSwitch
         ) {
             val enabled = !minimizeSwitch.isChecked
@@ -294,10 +327,10 @@ class MainActivity : AppCompatActivity() {
 
         lateinit var bubbleSizeSub: TextView
         val bubbleSizeRow = settingsRow(
-            "Bubble size",
+            "Tamaño de burbuja",
             "${prefs().getInt("bubble_size_dp", 44)} dp"
         ) {
-            showIntSlider("Bubble size", "bubble_size_dp", 32, 72, 44, " dp") { value ->
+            showIntSlider("Tamaño de burbuja", "bubble_size_dp", 32, 72, 44, " dp") { value ->
                 bubbleSizeSub.text = "$value dp"
             }
         }
@@ -306,10 +339,10 @@ class MainActivity : AppCompatActivity() {
 
         lateinit var dotSizeSub: TextView
         val dotSizeRow = settingsRow(
-            "Dot size",
+            "Tamaño del punto",
             "${prefs().getInt("dot_size_dp", 10)} dp"
         ) {
-            showIntSlider("Dot size", "dot_size_dp", 6, 18, 10, " dp") { value ->
+            showIntSlider("Tamaño del punto", "dot_size_dp", 6, 32, 10, " dp") { value ->
                 dotSizeSub.text = "$value dp"
             }
         }
@@ -319,11 +352,11 @@ class MainActivity : AppCompatActivity() {
         lateinit var dotTimeoutSub: TextView
         val dotTimeoutSeconds = prefs().getInt("dot_timeout_seconds", 3).coerceIn(0, 10)
         val dotTimeoutRow = settingsRow(
-            "Dot visible time",
-            if (dotTimeoutSeconds == 0) "Always" else "$dotTimeoutSeconds s"
+            "Tiempo visible del punto",
+            if (dotTimeoutSeconds == 0) "Siempre" else "$dotTimeoutSeconds s"
         ) {
             showDotTimeoutDialog { seconds ->
-                dotTimeoutSub.text = if (seconds == 0) "Always" else "$seconds s"
+                dotTimeoutSub.text = if (seconds == 0) "Siempre" else "$seconds s"
             }
         }
         dotTimeoutSub = dotTimeoutRow.findViewWithTag("subtitle")
@@ -331,23 +364,30 @@ class MainActivity : AppCompatActivity() {
 
         lateinit var inactiveAlphaSub: TextView
         val inactiveAlphaRow = settingsRow(
-            "Inactive transparency",
+            "Transparencia en reposo",
             "${prefs().getInt("overlay_alpha_percent", 70)}%"
         ) {
-            showIntSlider("Inactive transparency", "overlay_alpha_percent", 20, 100, 70, "%") { value ->
+            showIntSlider("Transparencia en reposo", "overlay_alpha_percent", 20, 100, 70, "%") { value ->
                 inactiveAlphaSub.text = "$value%"
             }
         }
         inactiveAlphaSub = inactiveAlphaRow.findViewWithTag("subtitle")
         settingsContainer.addView(inactiveAlphaRow)
 
+        val overlayColorRow = settingsRow(
+            "Color en reposo",
+            overlayColorLabel(prefs().getInt("overlay_idle_color", 0xDD1C1C1E.toInt()))
+        ) { showOverlayColorDialog() }
+        overlayColorRowSub = overlayColorRow.findViewWithTag("subtitle")
+        settingsContainer.addView(overlayColorRow)
+
         val systemOverlaySwitch = MaterialSwitch(this).apply {
             isChecked = prefs().getBoolean("system_overlay_enabled", false) && Settings.canDrawOverlays(this@MainActivity)
             isClickable = false
         }
         settingsContainer.addView(settingsRow(
-            "System overlay fallback",
-            "Optional 'Display over other apps' layer for extra resilience",
+            "Capa del sistema opcional",
+            "Usa «Mostrar sobre otras apps» como respaldo adicional",
             systemOverlaySwitch
         ) {
             if (systemOverlaySwitch.isChecked) {
@@ -366,37 +406,39 @@ class MainActivity : AppCompatActivity() {
                         Uri.parse("package:$packageName")
                     ))
                 } catch (e: Exception) {
-                    toast("Couldn't open overlay permission: ${e.message}")
+                    toast("No se pudo abrir el permiso de superposición: ${e.message}")
                 }
             }
         })
 
         settingsContainer.addView(settingsRow(
-            "Restore overlay",
-            "Recreate the bubble or dot now"
+            "Restaurar burbuja",
+            "Recrea ahora la burbuja o el punto"
         ) {
             WhisperAccessibilityService.instance?.restoreOverlay()
-                ?: toast("Accessibility service is not running")
+                ?: toast("El servicio de accesibilidad no está activo")
         })
 
-        settingsContainer.addView(sectionHeader("About"))
+        settingsContainer.addView(sectionHeader("Acerca de"))
 
         val versionName = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "unknown"
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "desconocida"
         } catch (e: Exception) {
-            "unknown"
+            "desconocida"
         }
-        settingsContainer.addView(settingsRow("Version", versionName))
+        settingsContainer.addView(settingsRow("Versión", versionName))
+        settingsContainer.addView(settingsRow("Canal", "Canary 5 · desarrollo"))
+        settingsContainer.addView(settingsRow("Proyecto / mantenedor", "@sromero78"))
 
-        settingsContainer.addView(settingsRow("GitHub", "View source & releases") {
+        settingsContainer.addView(settingsRow("GitHub", "Ver código fuente y versiones") {
             try {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/sromero78/OpenWhispr-S1")))
             } catch (e: Exception) {
-                toast("Couldn't open browser: ${e.message}")
+                toast("No se pudo abrir el navegador: ${e.message}")
             }
         })
 
-        settingsContainer.addView(settingsRow("Check for updates", "Tap to check now") {
+        settingsContainer.addView(settingsRow("Buscar actualizaciones", "Comprobar ahora") {
             checkForUpdate(force = true)
         })
 
@@ -405,10 +447,21 @@ class MainActivity : AppCompatActivity() {
         outer.addView(settingsContainer)
         showTab(0)
 
-        setContentView(ScrollView(this).apply {
+        val scrollView = ScrollView(this).apply {
             setBackgroundColor(attrColor(android.R.attr.colorBackground))
             addView(outer)
-        })
+        }
+        ViewCompat.setOnApplyWindowInsetsListener(scrollView) { view, insets ->
+            val nav = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
+            view.setPadding(
+                view.paddingLeft,
+                view.paddingTop,
+                view.paddingRight,
+                nav.bottom + dp(16)
+            )
+            insets
+        }
+        setContentView(scrollView)
 
         if (!hasPerm(Manifest.permission.RECORD_AUDIO)) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 1)
@@ -485,7 +538,7 @@ class MainActivity : AppCompatActivity() {
         views.dlBtn.isEnabled = false
         views.progress.visibility = View.VISIBLE
         views.progress.isIndeterminate = false
-        views.subtitle.text = "Starting download..."
+        views.subtitle.text = "Iniciando descarga..."
 
         ModelDownloader.download(this, model) { state ->
             runOnUiThread {
@@ -496,12 +549,12 @@ class MainActivity : AppCompatActivity() {
                     }
                     is DownloadState.Extracting -> {
                         views.progress.isIndeterminate = true
-                        views.subtitle.text = "Extracting..."
+                        views.subtitle.text = "Extrayendo..."
                     }
                     is DownloadState.Done -> {
                         views.progress.visibility = View.GONE
                         selectModel(model.archive)
-                        toast("${model.name} ready!")
+                        toast("${model.name} listo")
                     }
                     is DownloadState.Error -> {
                         views.progress.visibility = View.GONE
@@ -546,22 +599,22 @@ class MainActivity : AppCompatActivity() {
         val hasModel = LocalTranscriber.availableModels(this).isNotEmpty()
         val unrestricted = isIgnoringBatteryOptimizations()
 
-        audioRowSub.text = if (audio) "Granted" else "Tap to grant permission"
-        accRowSub.text = if (acc) "Enabled" else "Tap to enable in settings"
+        audioRowSub.text = if (audio) "Concedido" else "Toca para conceder el permiso"
+        accRowSub.text = if (acc) "Activado" else "Toca para activarlo en Ajustes"
         batteryRowSub.text = if (unrestricted)
-            "Unrestricted — won't be shut down to save battery"
+            "Sin restricciones — Android no debería cerrarlo para ahorrar batería"
         else
-            "Tap to allow background activity (recommended)"
+            "Toca para permitir actividad en segundo plano (recomendado)"
 
         // --- Setup checklist card ---
         val allOk = audio && acc && unrestricted
         val doneCount = listOf(audio, acc, unrestricted).count { it }
 
         setupCollapsedRow.visibility = if (allOk) View.VISIBLE else View.GONE
-        setupCollapsedRowSub.text = if (setupExpanded) "Tap to collapse" else "Tap to review"
+        setupCollapsedRowSub.text = if (setupExpanded) "Toca para contraer" else "Toca para revisar"
 
         setupDoneSummary.visibility = if (!allOk && doneCount > 0) View.VISIBLE else View.GONE
-        setupDoneSummary.text = "✓ $doneCount of 3 setup steps ready"
+        setupDoneSummary.text = "✓ $doneCount de 3 pasos listos"
 
         fun rowVisibility(ok: Boolean) =
             if (!ok || (allOk && setupExpanded)) View.VISIBLE else View.GONE
@@ -580,18 +633,32 @@ class MainActivity : AppCompatActivity() {
 
         val voiceCommandsEnabled = prefs().getBoolean("voice_commands_enabled", false)
         voiceCommandsDetailContainer.visibility = if (voiceCommandsEnabled) View.VISIBLE else View.GONE
-        triggerPhraseRowSub.text = "\"${prefs().getString("command_trigger_phrase", "Whisper Command")}\""
+        triggerPhraseRowSub.text = "\"${prefs().getString("command_trigger_phrase", "Comando Whisper")}\""
 
         val apiKey = prefs().getString("api_key", "") ?: ""
-        keyRowSub.text = if (apiKey.isBlank()) "Tap to set"
+        keyRowSub.text = if (apiKey.isBlank()) "Toca para configurarla"
                          else if (apiKey.length > 7) "gsk_...${apiKey.takeLast(4)}"
                          else "gsk_...***"
 
         val customInstructions = prefs().getString("custom_instructions", "") ?: ""
         customInstructionsRowSub.text = if (customInstructions.isBlank())
-            "Tap to add extra refinements"
+            "Toca para añadir reglas adicionales"
         else
             customInstructions.replace("\n", " ")
+
+        val writingProfile = prefs().getString("writing_profile", WritingProfiles.AUTO) ?: WritingProfiles.AUTO
+        writingProfileRowSub.text = if (writingProfile == WritingProfiles.AUTO)
+            "Automático · según la app activa"
+        else
+            WritingProfiles.label(writingProfile)
+        val historyCount = DictationHistory.load(prefs()).size
+        historyRowSub.text = if (historyCount == 0)
+            "Sin dictados guardados"
+        else
+            "$historyCount de ${DictationHistory.MAX_ITEMS} dictados guardados"
+        overlayColorRowSub.text = overlayColorLabel(
+            prefs().getInt("overlay_idle_color", 0xDD1C1C1E.toInt())
+        )
 
         val cur = prefs().getString("model_name", "") ?: ""
         if (cur.isBlank() || !File(filesDir, "models/$cur").exists()) {
@@ -605,7 +672,7 @@ class MainActivity : AppCompatActivity() {
         val postReady = !usePostProcessing || hasKey
         val ready = audio && acc && (localReady || cloudReady) && postReady
 
-        statusSubtitle.text = if (ready) "Ready — tap the overlay dot to dictate" else "Setup required"
+        statusSubtitle.text = if (ready) "Listo — toca el punto para dictar" else "Configuración pendiente"
         statusSubtitle.setTextColor(if (ready) attrColor(androidx.appcompat.R.attr.colorPrimary) else attrColor(android.R.attr.textColorSecondary))
 
         refreshAllCards()
@@ -613,14 +680,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Android 13+ silently disables the Accessibility toggle for apps
-     * installed outside the Play Store ("Restricted settings"), with no
+     * installed outside the Play Store ("Ajustes restringidos"), with no
      * explanation in the Settings UI itself -- it just looks broken. Walks
      * the user through unlocking it before sending them to the system
      * screen, instead of letting them hit a dead end and assume the app
      * doesn't work. */
     private fun showRestrictedSettingsHelp() {
         android.app.AlertDialog.Builder(this)
-            .setTitle("One extra step on Android 13+")
+            .setTitle("Un paso adicional en Android 13+")
             .setMessage(
                 "Android blocks this permission by default for apps installed outside the Play Store -- that's normal, not a bug.\n\n" +
                 "If the Accessibility toggle looks greyed out or won't switch on:\n" +
@@ -628,10 +695,10 @@ class MainActivity : AppCompatActivity() {
                 "2. Tap the \u22ee menu (top right) -> \"Allow restricted settings\"\n" +
                 "3. Come back and enable Accessibility as usual"
             )
-            .setPositiveButton("Open Accessibility settings") { _, _ ->
+            .setPositiveButton("Abrir ajustes de Accesibilidad") { _, _ ->
                 startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton("Cancelar", null)
             .show()
     }
 
@@ -643,7 +710,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun requestBatteryExemption() {
-        if (isIgnoringBatteryOptimizations()) { toast("Already unrestricted"); return }
+        if (isIgnoringBatteryOptimizations()) { toast("Ya está sin restricciones"); return }
         try {
             startActivity(
                 Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
@@ -657,7 +724,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
             } catch (e2: Exception) {
-                toast("Couldn't open battery settings: ${e2.message}")
+                toast("No se pudieron abrir los ajustes de batería: ${e2.message}")
             }
         }
     }
@@ -679,21 +746,21 @@ class MainActivity : AppCompatActivity() {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 if (info != null) {
                     android.app.AlertDialog.Builder(this)
-                        .setTitle("Update available")
+                        .setTitle("Actualización disponible")
                         .setMessage(
                             buildString {
-                                append("OpenWispr ${info.version} is available. You're on $currentVersion.")
+                                append("OpenWispr ${info.version} está disponible. Tienes $currentVersion.")
                                 if (!info.notes.isNullOrBlank()) {
                                     append("\n\nWhat's new:\n")
                                     append(info.notes)
                                 }
                             }
                         )
-                        .setPositiveButton("Update") { _, _ -> downloadAndInstallUpdate(info) }
-                        .setNegativeButton("Later", null)
+                        .setPositiveButton("Actualizar") { _, _ -> downloadAndInstallUpdate(info) }
+                        .setNegativeButton("Más tarde", null)
                         .show()
                 } else if (force) {
-                    toast("You're up to date (v$currentVersion)")
+                    toast("Ya tienes la última versión (v$currentVersion)")
                 }
             }
         }
@@ -712,16 +779,16 @@ class MainActivity : AppCompatActivity() {
             try {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(info.url)))
             } catch (e: Exception) {
-                toast("Couldn't open browser: ${e.message}")
+                toast("No se pudo abrir el navegador: ${e.message}")
             }
             return
         }
 
         if (android.os.Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
             android.app.AlertDialog.Builder(this)
-                .setTitle("Allow installing updates")
-                .setMessage("To install updates in-app, allow OpenWispr to install unknown apps on the next screen, then come back and tap Update again.")
-                .setPositiveButton("Continue") { _, _ ->
+                .setTitle("Permitir instalar actualizaciones")
+                .setMessage("Para instalar actualizaciones desde la app, permite que OpenWispr instale aplicaciones desconocidas en la siguiente pantalla. Después vuelve y pulsa Actualizar de nuevo.")
+                .setPositiveButton("Continuar") { _, _ ->
                     try {
                         startActivity(
                             Intent(
@@ -730,20 +797,20 @@ class MainActivity : AppCompatActivity() {
                             )
                         )
                     } catch (e: Exception) {
-                        toast("Couldn't open settings: ${e.message}")
+                        toast("No se pudieron abrir los ajustes: ${e.message}")
                     }
                 }
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton("Cancelar", null)
                 .show()
             return
         }
 
-        toast("Downloading update…")
+        toast("Descargando actualización…")
         UpdateChecker.downloadApk(this, apkUrl) { file, error ->
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 if (file == null) {
-                    toast("Download failed: ${error ?: "unknown error"}")
+                    toast("Download failed: ${error ?: "desconocida error"}")
                     return@runOnUiThread
                 }
                 installApk(file)
@@ -760,7 +827,7 @@ class MainActivity : AppCompatActivity() {
         try {
             startActivity(intent)
         } catch (e: Exception) {
-            toast("Couldn't start installer: ${e.message}")
+            toast("No se pudo iniciar el instalador: ${e.message}")
         }
     }
 
@@ -772,26 +839,24 @@ class MainActivity : AppCompatActivity() {
         if (!accessibilityEnabled || unrestricted || batteryWarningShown) return
         batteryWarningShown = true
         android.app.AlertDialog.Builder(this)
-            .setTitle("Keep dictation running")
+            .setTitle("Mantener el dictado activo")
             .setMessage(
-                "Android's battery saver can shut down OpenWispr's background " +
-                "service to save power, which makes the mic overlay disappear until " +
-                "you reopen the app.\n\n" +
-                "Allow it to run unrestricted so it stays available.\n\n" +
-                "On some phones (Samsung, Xiaomi, OnePlus, and others) you may also " +
-                "need to allow \"autostart\" or remove OpenWispr from any " +
-                "battery/app-sleep manager in your phone's own settings, separately " +
-                "from the Android dialog this opens."
+                "El ahorro de batería de Android puede cerrar el servicio en segundo plano de OpenWispr " +
+                "y hacer desaparecer la burbuja hasta que vuelvas a abrir la app.\n\n" +
+                "Permite que funcione sin restricciones para mantenerla disponible.\n\n" +
+                "En algunos móviles (Samsung, Xiaomi, OnePlus y otros) también puede ser necesario " +
+                "permitir el inicio automático o excluir OpenWispr de los sistemas de suspensión " +
+                "de aplicaciones del fabricante."
             )
-            .setPositiveButton("Disable restrictions") { _, _ -> requestBatteryExemption() }
-            .setNegativeButton("Later", null)
+            .setPositiveButton("Quitar restricciones") { _, _ -> requestBatteryExemption() }
+            .setNegativeButton("Más tarde", null)
             .show()
     }
 
     private fun promptApiKey() {
         val link = TextView(this).apply {
             text = android.text.Html.fromHtml(
-                "Don't have one? Get a free key at <a href=\"https://console.groq.com/keys\">console.groq.com/keys</a>",
+                "¿No tienes una? Consigue una clave gratuita en <a href=\"https://console.groq.com/keys\">console.groq.com/keys</a>",
                 android.text.Html.FROM_HTML_MODE_LEGACY
             )
             movementMethod = android.text.method.LinkMovementMethod.getInstance()
@@ -807,13 +872,13 @@ class MainActivity : AppCompatActivity() {
             addView(input)
         }
         android.app.AlertDialog.Builder(this)
-            .setTitle("Groq API Key")
+            .setTitle("Clave API de Groq")
             .setView(container)
-            .setPositiveButton("Save") { _, _ ->
+            .setPositiveButton("Guardar") { _, _ ->
                 prefs().edit().putString("api_key", input.text.toString().trim()).apply()
                 refresh()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton("Cancelar", null)
             .show()
     }
 
@@ -822,61 +887,194 @@ class MainActivity : AppCompatActivity() {
         // shown here -- this only lets the user append their own extra
         // refinements on top of it (see PostProcessor.effectivePrompt).
         val input = EditText(this).apply {
-            hint = "e.g. always spell out \"NASA\" in full"
+            hint = "Ej.: escribe siempre las siglas CNC en mayúsculas"
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
             minLines = 4
             gravity = Gravity.TOP or Gravity.START
             setText(prefs().getString("custom_instructions", ""))
         }
         android.app.AlertDialog.Builder(this)
-            .setTitle("Add custom instructions")
-            .setMessage("These are appended to OpenWispr's built-in cleanup rules. They can't override its safety, formatting, or self-correction behavior.")
+            .setTitle("Instrucciones globales")
+            .setMessage("Se aplican a todos los perfiles de escritura, además de las reglas internas de limpieza de OpenWispr. No sustituyen las reglas de seguridad, formato ni autocorrección.")
             .setView(input.apply { setPadding(dp(24), dp(8), dp(24), dp(8)) })
-            .setPositiveButton("Save") { _, _ ->
+            .setPositiveButton("Guardar") { _, _ ->
                 prefs().edit().putString("custom_instructions", input.text.toString().trim()).apply()
                 refresh()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton("Cancelar", null)
             .show()
     }
 
     private fun promptTriggerPhrase() {
         val input = EditText(this).apply {
-            hint = "Whisper Command"
-            setText(prefs().getString("command_trigger_phrase", "Whisper Command"))
+            hint = "Comando Whisper"
+            setText(prefs().getString("command_trigger_phrase", "Comando Whisper"))
         }
         android.app.AlertDialog.Builder(this)
-            .setTitle("Trigger phrase")
-            .setMessage("Say this phrase at the start of a recording to switch into command mode instead of normal dictation.")
+            .setTitle("Frase de activación")
+            .setMessage("Di esta frase al principio de una grabación para entrar en modo comando en lugar de dictado normal.")
             .setView(input.apply { setPadding(dp(24), dp(8), dp(24), dp(8)) })
-            .setPositiveButton("Save") { _, _ ->
+            .setPositiveButton("Guardar") { _, _ ->
                 val phrase = input.text.toString().trim()
                 prefs().edit()
-                    .putString("command_trigger_phrase", if (phrase.isBlank()) "Whisper Command" else phrase)
+                    .putString("command_trigger_phrase", if (phrase.isBlank()) "Comando Whisper" else phrase)
                     .apply()
                 refresh()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton("Cancelar", null)
             .show()
     }
 
     private fun showCommandExamples() {
-        val trigger = prefs().getString("command_trigger_phrase", "Whisper Command") ?: "Whisper Command"
+        val trigger = prefs().getString("command_trigger_phrase", "Comando Whisper") ?: "Comando Whisper"
         val message = """
-            Say the trigger phrase, then one of these -- applies to whatever's already in the field, or to text you dictate right after the command:
+            Di la frase de activación y después la orden. Se aplicará al texto que ya esté en el campo o al texto que dictes dentro del propio comando:
 
-            • "$trigger, summarize this in two sentences"
-            • "$trigger, enhance the flow"
-            • "$trigger, translate to Italian"
-            • "$trigger, make this more formal"
-            • "$trigger, turn this into a list"
+            • "$trigger, resume esto en dos frases"
+            • "$trigger, mejora la fluidez"
+            • "$trigger, tradúcelo al italiano"
+            • "$trigger, ponlo en un tono más formal"
+            • "$trigger, conviértelo en una lista"
 
-            You can chain more than one: "$trigger, translate to Italian and turn it into a list" applies them in that order.
+            Puedes encadenar varias: "$trigger, tradúcelo al italiano y conviértelo en una lista".
         """.trimIndent()
         android.app.AlertDialog.Builder(this)
-            .setTitle("Command examples")
+            .setTitle("Ejemplos de comandos")
             .setMessage(message)
-            .setPositiveButton("Got it", null)
+            .setPositiveButton("Entendido", null)
+            .show()
+    }
+
+    private fun showWritingProfileDialog() {
+        val current = prefs().getString("writing_profile", WritingProfiles.AUTO) ?: WritingProfiles.AUTO
+        val checked = WritingProfiles.keys.indexOf(current).coerceAtLeast(0)
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Perfil de escritura")
+            .setMessage(WritingProfiles.examplesText() + "\n\nEn Automático, OpenWispr usa un perfil conversacional en mensajería y Formal en las principales apps de correo. Mantén pulsada la burbuja para forzar otro perfil solo durante la sesión en la app actual.")
+            .setSingleChoiceItems(WritingProfiles.labels, checked) { dialog, which ->
+                val key = WritingProfiles.keys[which]
+                prefs().edit().putString("writing_profile", key).apply()
+                writingProfileRowSub.text = WritingProfiles.label(key)
+                dialog.dismiss()
+                if (key == WritingProfiles.CUSTOM) promptCustomProfileInstructions()
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun promptCustomProfileInstructions() {
+        val input = EditText(this).apply {
+            hint = "Ej.: conserva un tono breve y directo, sin fórmulas de cortesía añadidas"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            minLines = 4
+            gravity = Gravity.TOP or Gravity.START
+            setText(prefs().getString("profile_custom_instructions", ""))
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Perfil personalizado")
+            .setMessage("Estas reglas solo se aplican cuando está seleccionado el perfil Personalizado.")
+            .setView(input.apply { setPadding(dp(24), dp(8), dp(24), dp(8)) })
+            .setPositiveButton("Guardar") { _, _ ->
+                prefs().edit().putString("profile_custom_instructions", input.text.toString().trim()).apply()
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun showHistoryDialog() {
+        val items = DictationHistory.load(prefs())
+        if (items.isEmpty()) {
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Historial de dictados")
+                .setMessage("Todavía no hay dictados guardados. El historial es local y solo conserva texto, nunca audio.")
+                .setPositiveButton("Entendido", null)
+                .show()
+            return
+        }
+
+        val labels = items.mapIndexed { index, text ->
+            val compact = text.replace("\n", " ")
+            val shown = if (compact.length > 120) compact.take(117) + "…" else compact
+            "${index + 1}. $shown"
+        }.toTypedArray()
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Historial de dictados")
+            .setMessage("Toca un texto para copiarlo. Se guardan como máximo ${DictationHistory.MAX_ITEMS} y solo en este dispositivo.")
+            .setItems(labels) { _, which ->
+                val clip = ClipData.newPlainText("OpenWispr historial", items[which])
+                (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(clip)
+                toast("Texto copiado")
+            }
+            .setNeutralButton("Borrar historial") { _, _ ->
+                DictationHistory.clear(prefs())
+                refresh()
+                toast("Historial borrado")
+            }
+            .setNegativeButton("Cerrar", null)
+            .show()
+    }
+
+    private fun overlayColorLabel(color: Int): String = when (color) {
+        0xDD1C1C1E.toInt() -> "Grafito"
+        0xFF1565C0.toInt() -> "Azul"
+        0xFF00897B.toInt() -> "Verde azulado"
+        0xFFFF8F00.toInt() -> "Ámbar"
+        0xFF7B1FA2.toInt() -> "Violeta"
+        else -> String.format("#%06X", 0xFFFFFF and color)
+    }
+
+    private fun showOverlayColorDialog() {
+        val names = arrayOf("Grafito", "Azul", "Verde azulado", "Ámbar", "Violeta", "Personalizado…")
+        val colors = intArrayOf(
+            0xDD1C1C1E.toInt(),
+            0xFF1565C0.toInt(),
+            0xFF00897B.toInt(),
+            0xFFFF8F00.toInt(),
+            0xFF7B1FA2.toInt()
+        )
+        val current = prefs().getInt("overlay_idle_color", 0xDD1C1C1E.toInt())
+        val checked = colors.indexOf(current)
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Color en reposo")
+            .setSingleChoiceItems(names, checked) { dialog, which ->
+                dialog.dismiss()
+                if (which == names.lastIndex) {
+                    promptCustomOverlayColor()
+                } else {
+                    val color = colors[which]
+                    prefs().edit().putInt("overlay_idle_color", color).apply()
+                    overlayColorRowSub.text = overlayColorLabel(color)
+                    WhisperAccessibilityService.instance?.refreshOverlaySettings()
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun promptCustomOverlayColor() {
+        val input = EditText(this).apply {
+            hint = "#3F51B5"
+            inputType = InputType.TYPE_CLASS_TEXT
+            setText(String.format("#%06X", 0xFFFFFF and prefs().getInt("overlay_idle_color", 0xDD1C1C1E.toInt())))
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Color personalizado")
+            .setMessage("Introduce un color hexadecimal, por ejemplo #3F51B5.")
+            .setView(input.apply { setPadding(dp(24), dp(8), dp(24), dp(8)) })
+            .setPositiveButton("Guardar") { _, _ ->
+                try {
+                    val color = Color.parseColor(input.text.toString().trim())
+                    prefs().edit().putInt("overlay_idle_color", color).apply()
+                    overlayColorRowSub.text = overlayColorLabel(color)
+                    WhisperAccessibilityService.instance?.refreshOverlaySettings()
+                } catch (_: IllegalArgumentException) {
+                    toast("Color no válido")
+                }
+            }
+            .setNegativeButton("Cancelar", null)
             .show()
     }
 
@@ -915,25 +1113,25 @@ class MainActivity : AppCompatActivity() {
         android.app.AlertDialog.Builder(this)
             .setTitle(title)
             .setView(content)
-            .setPositiveButton("Save") { _, _ ->
+            .setPositiveButton("Guardar") { _, _ ->
                 val value = min + seek.progress
                 prefs().edit().putInt(prefKey, value).apply()
                 onSaved?.invoke(value)
                 WhisperAccessibilityService.instance?.refreshOverlaySettings()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton("Cancelar", null)
             .show()
     }
 
     private fun showDotTimeoutDialog(onSaved: (Int) -> Unit) {
         val labels = Array(11) { index ->
-            if (index == 10) "Always" else "${index + 1} seconds"
+            if (index == 10) "Siempre" else "${index + 1} s"
         }
         val current = prefs().getInt("dot_timeout_seconds", 3).coerceIn(0, 10)
         val checked = if (current == 0) 10 else current - 1
 
         android.app.AlertDialog.Builder(this)
-            .setTitle("Dot visible time")
+            .setTitle("Tiempo visible del punto")
             .setSingleChoiceItems(labels, checked) { dialog, which ->
                 val seconds = if (which == 10) 0 else which + 1
                 prefs().edit().putInt("dot_timeout_seconds", seconds).apply()
@@ -941,7 +1139,7 @@ class MainActivity : AppCompatActivity() {
                 WhisperAccessibilityService.instance?.refreshOverlaySettings()
                 dialog.dismiss()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton("Cancelar", null)
             .show()
     }
 
