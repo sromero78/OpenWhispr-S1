@@ -423,7 +423,7 @@ class WhisperAccessibilityService : AccessibilityService() {
             img.layoutParams = FrameLayout.LayoutParams(dotPx, dotPx, Gravity.CENTER)
             img.setPadding(0, 0, 0, 0)
             img.setImageDrawable(null)
-            img.background = circle(COLOR_IDLE)
+            img.background = circle(prefs().getInt("dot_color", COLOR_IDLE))
             ring?.visibility = View.GONE
         } else {
             val buttonPx = (configuredBubbleDp() * dp).toInt()
@@ -884,7 +884,7 @@ class WhisperAccessibilityService : AccessibilityService() {
                 else -> if (foregroundPackage == "com.whatsapp" || foregroundPackage == "com.whatsapp.w4b")
                     PostProcessor.Style.WHATSAPP else PostProcessor.Style.NORMAL
             }
-            val prompt = PostProcessor.effectivePrompt(customInstructions, style)
+            val prompt = PostProcessor.effectivePrompt(customInstructions, style, VocabularyStore.prompt(this))
 
             PostProcessor.process(text, prompt, apiKey) { result ->
                 handler.post {
