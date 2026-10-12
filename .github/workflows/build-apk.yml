@@ -86,3 +86,20 @@ jobs:
           files: dist/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Canary S9 prerelease for Obtainium
+        if: github.ref == 'refs/heads/feature/canary-s9'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v3.10.0-canary.9
+          target_commitish: ${{ github.sha }}
+          name: OpenWispr Canary S9
+          prerelease: true
+          make_latest: false
+          body: |
+            Experimental Canary S9 based on stable Canary S7, not S8.
+            Includes dictation styles, personal vocabulary, backup/restore, dot colors and bounded overlay watchdog.
+            Android hardware validation is pending. Canary S7 remains unchanged.
+          files: dist/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
