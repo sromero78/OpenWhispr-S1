@@ -1094,32 +1094,49 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showOverlayColorDialog() {
-        val names = arrayOf("Grafito", "Azul", "Verde azulado", "Ámbar", "Violeta", "Personalizado…")
+        val names = arrayOf("Grafito", "Azul", "Verde azulado", "Ámbar", "Violeta")
         val colors = intArrayOf(
-            0xDD1C1C1E.toInt(),
-            0xFF1565C0.toInt(),
-            0xFF00897B.toInt(),
-            0xFFFF8F00.toInt(),
-            0xFF7B1FA2.toInt()
+            0xDD1C1C1E.toInt(), 0xFF1565C0.toInt(), 0xFF00897B.toInt(),
+            0xFFFF8F00.toInt(), 0xFF7B1FA2.toInt()
         )
-        val current = prefs().getInt("overlay_idle_color", 0xDD1C1C1E.toInt())
-        val checked = colors.indexOf(current)
-
-        android.app.AlertDialog.Builder(this)
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(8))
+        }
+        container.addView(TextView(this).apply { text = "Toca un color para seleccionarlo" })
+        val swatches = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(0, dp(12), 0, dp(12))
+        }
+        val dialog = android.app.AlertDialog.Builder(this)
             .setTitle("Color en reposo")
-            .setSingleChoiceItems(names, checked) { dialog, which ->
-                dialog.dismiss()
-                if (which == names.lastIndex) {
-                    promptCustomOverlayColor()
-                } else {
-                    val color = colors[which]
+            .setView(container)
+            .setNeutralButton("Personalizado…") { _, _ -> promptCustomOverlayColor() }
+            .setNegativeButton("Cancelar", null)
+            .create()
+        colors.forEachIndexed { i, color ->
+            val circle = TextView(this).apply {
+                text = if (color == prefs().getInt("overlay_idle_color", colors[0])) "✓" else ""
+                setTextColor(Color.WHITE)
+                textSize = 19f
+                gravity = Gravity.CENTER
+                background = dotDrawable(color)
+                contentDescription = names[i]
+                layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).apply {
+                    marginEnd = dp(6)
+                }
+                setOnClickListener {
                     prefs().edit().putInt("overlay_idle_color", color).apply()
                     overlayColorRowSub.text = overlayColorLabel(color)
                     WhisperAccessibilityService.instance?.refreshOverlaySettings()
+                    dialog.dismiss()
                 }
             }
-            .setNegativeButton("Cancelar", null)
-            .show()
+            swatches.addView(circle)
+        }
+        container.addView(swatches)
+        dialog.show()
     }
 
     private fun promptCustomOverlayColor() {
