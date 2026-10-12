@@ -948,11 +948,42 @@ class MainActivity : AppCompatActivity() {
 
     private fun showDotColorPicker() {
         val colors = intArrayOf(0xDD1C1C1E.toInt(), 0xFF2196F3.toInt(), 0xFF4CAF50.toInt(), 0xFFFF9800.toInt(), 0xFFE91E63.toInt())
-        val labels = arrayOf("Predeterminado", "Azul", "Verde", "Naranja", "Rosa", "Más colores…")
-        androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Color del punto")
-            .setItems(labels) { _, which ->
-                if (which < colors.size) saveDotColor(colors[which]) else showCustomDotColor()
-            }.show()
+        val names = arrayOf("Predeterminado", "Azul", "Verde", "Naranja", "Rosa")
+        val current = prefs().getInt("dot_color", colors[0])
+        val layout = vertical(dp(20), dp(12))
+        layout.addView(TextView(this).apply { text = "Elige un color para el punto flotante" })
+        val swatches = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_HORIZONTAL
+        }
+        colors.forEachIndexed { index, color ->
+            val swatch = TextView(this).apply {
+                text = if (color == current) "✓" else "●"
+                textSize = 23f
+                gravity = Gravity.CENTER
+                setTextColor(if (color == current) Color.WHITE else color)
+                background = dotDrawable(color)
+                contentDescription = names[index]
+                layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).apply {
+                    marginEnd = dp(8)
+                }
+                setOnClickListener { saveDotColor(color); showDotColorPicker() }
+            }
+            swatches.addView(swatch)
+        }
+        layout.addView(swatches)
+        layout.addView(TextView(this).apply {
+            text = "Color personalizado"
+            textSize = 16f
+            setPadding(0, dp(12), 0, dp(8))
+            setOnClickListener { showCustomDotColor() }
+        })
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Color del punto")
+            .setView(layout)
+            .setPositiveButton("Elegir color personalizado") { _, _ -> showCustomDotColor() }
+            .setNegativeButton("Cerrar", null)
+            .show()
     }
 
     private fun saveDotColor(color: Int) {
