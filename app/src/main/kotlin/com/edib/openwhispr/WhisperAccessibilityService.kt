@@ -876,7 +876,15 @@ class WhisperAccessibilityService : AccessibilityService() {
             }
 
             val customInstructions = prefs().getString("custom_instructions", "") ?: ""
-            val prompt = PostProcessor.effectivePrompt(customInstructions)
+            val foregroundPackage = rootInActiveWindow?.packageName?.toString()
+            val style = when (prefs().getString("dictation_style", "auto")) {
+                "whatsapp" -> PostProcessor.Style.WHATSAPP
+                "formal" -> PostProcessor.Style.FORMAL
+                "normal" -> PostProcessor.Style.NORMAL
+                else -> if (foregroundPackage == "com.whatsapp" || foregroundPackage == "com.whatsapp.w4b")
+                    PostProcessor.Style.WHATSAPP else PostProcessor.Style.NORMAL
+            }
+            val prompt = PostProcessor.effectivePrompt(customInstructions, style)
 
             PostProcessor.process(text, prompt, apiKey) { result ->
                 handler.post {
