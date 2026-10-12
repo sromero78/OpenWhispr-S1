@@ -3,7 +3,7 @@ name: Build APK
 
 on:
   push:
-    branches: [ canary ]
+    branches: [canary, feature/canary-s9-from-s7]
     paths-ignore:
       - 'README.md'
       - 'ATTRIBUTION.md'
