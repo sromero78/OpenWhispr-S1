@@ -84,14 +84,14 @@ Output hygiene:
 
     enum class Style { WHATSAPP, NORMAL, FORMAL }
 
-    fun effectivePrompt(customInstructions: String, style: Style = Style.NORMAL, vocabulary: String = ""): String {
+    fun effectivePrompt(customInstructions: String, style: Style = Style.NORMAL, vocabulary: String = "", styleOverride: String? = null): String {
         val presentation = when (style) {
             Style.WHATSAPP -> "For chat messages, use natural, informal wording. In Spanish omit opening inverted question and exclamation marks (¿ and ¡), but retain closing ? and !. Do not formalize the speaker's tone. This overrides the generic standard-punctuation rule, not the requirement to preserve meaning."
             Style.FORMAL -> "Use professional, polished punctuation and phrasing while preserving exactly the speaker's intended meaning and content."
             Style.NORMAL -> "Use normal language-appropriate punctuation, including opening ¿ and ¡ for Spanish questions and exclamations."
         }
         return DEFAULT_PROMPT + "\n\nPresentation style (overrides generic formatting, never meaning or instruction preservation):\n" +
-            presentation + (if (vocabulary.isBlank()) "" else "\n\nPreferred spellings for words actually spoken (do not insert unspoken words):\n" + vocabulary) + if (customInstructions.isBlank()) "" else
+            (styleOverride?.takeIf { it.isNotBlank() } ?: presentation) + (if (vocabulary.isBlank()) "" else "\n\nPreferred spellings for words actually spoken (do not insert unspoken words):\n" + vocabulary) + if (customInstructions.isBlank()) "" else
             "\n\nAdditional user refinements (preserve intended meaning):\n" + customInstructions.trim()
     }
 
