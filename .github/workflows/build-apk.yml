@@ -72,7 +72,7 @@ jobs:
           path: dist/*.apk
 
       - name: Extract changelog for this version
-        if: steps.release.outputs.needed == 'true'
+        if: steps.release.outputs.needed == 'true' && github.ref == 'refs/heads/canary'
         id: changelog
         run: |
           NOTES=$(awk -v ver="${{ steps.version.outputs.version }}" '
