@@ -236,6 +236,21 @@ class MainActivity : AppCompatActivity() {
         customInstructionsRowSub.ellipsize = android.text.TextUtils.TruncateAt.END
         dictationContainer.addView(customInstructionsRow)
 
+        val styleOptions = arrayOf("Automatic (WhatsApp / Normal)", "WhatsApp informal", "Normal", "Formal")
+        val styleValues = arrayOf("auto", "whatsapp", "normal", "formal")
+        dictationContainer.addView(settingsRow("Dictation style", "Choose automatic or manual formatting") {
+            val current = prefs().getString("dictation_style", "auto")
+            val checked = styleValues.indexOf(current).coerceAtLeast(0)
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Dictation style")
+                .setSingleChoiceItems(styleOptions, checked) { dialog, which ->
+                    prefs().edit().putString("dictation_style", styleValues[which]).apply()
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        })
+
         dictationContainer.addView(sectionHeader("Voice Commands"))
 
         val isVoiceCommands = prefs().getBoolean("voice_commands_enabled", false)
