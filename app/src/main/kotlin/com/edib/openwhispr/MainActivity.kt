@@ -53,6 +53,32 @@ class MainActivity : AppCompatActivity() {
     private lateinit var dictationContainer: LinearLayout
     private lateinit var settingsContainer: LinearLayout
 
+    private val exportVocabulary = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) try {
+            contentResolver.openOutputStream(uri)?.use { it.write(VocabularyStore.encode(VocabularyStore.load(this)).toByteArray(Charsets.UTF_8)) }
+                ?: error("Cannot open destination")
+            toast("Vocabulary exported")
+        } catch (e: Exception) { toast("Export failed: ${e.message}") }
+    }
+    private val importVocabulary = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) try {
+            val raw = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: error("Cannot read file")
+            val imported = VocabularyStore.decode(raw)
+            val current = VocabularyStore.load(this)
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Restore vocabulary?")
+                .setMessage("Replace ${current.size} existing entries with ${imported.size} entries from the backup? A recovery copy of the current vocabulary will be saved inside the app.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Restore") { _, _ ->
+                    try {
+                        prefs().edit().putString("vocabulary_recovery", VocabularyStore.encode(current)).commit()
+                        VocabularyStore.save(this, imported)
+                        toast("Vocabulary restored")
+                    } catch (e: Exception) { toast("Restore failed: ${e.message}") }
+                }.show()
+        } catch (e: Exception) { toast("Invalid backup: ${e.message}") }
+    }
+
     private val modelRows = mutableMapOf<String, ModelRowViews>()
     private var batteryWarningShown = false
     private var setupExpanded = false
@@ -235,6 +261,9 @@ class MainActivity : AppCompatActivity() {
         customInstructionsRowSub.maxLines = 2
         customInstructionsRowSub.ellipsize = android.text.TextUtils.TruncateAt.END
         dictationContainer.addView(customInstructionsRow)
+        dictationContainer.addView(settingsRow("Personal vocabulary", "Names, places, acronyms and spelling hints") { showVocabulary() })
+        dictationContainer.addView(settingsRow("Export vocabulary", "Save a JSON backup to Files or Google Drive") { exportVocabulary.launch("openwispr-vocabulary.json") })
+        dictationContainer.addView(settingsRow("Restore vocabulary", "Validate a backup before replacing entries") { importVocabulary.launch(arrayOf("application/json", "text/plain")) })
 
         val styleOptions = arrayOf("Automatic (WhatsApp / Normal)", "WhatsApp informal", "Normal", "Formal")
         val styleValues = arrayOf("auto", "whatsapp", "normal", "formal")
@@ -290,6 +319,8 @@ class MainActivity : AppCompatActivity() {
         settingsContainer.addView(keyRow)
 
         settingsContainer.addView(sectionHeader("Overlay"))
+        settingsContainer.addView(settingsRow("Dot color", "Presets and custom color picker") { showDotColorPicker() })
+
 
         val minimizeSwitch = MaterialSwitch(this).apply {
             isChecked = prefs().getBoolean("minimize_to_dot", false)
@@ -829,6 +860,97 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    private fun showVocabulary() {
+        val entries = VocabularyStore.load(this)
+        val options = entries.map { it.spelling + if (it.heardAs.isBlank()) "" else " · " + it.heardAs }.toTypedArray()
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Personal vocabulary")
+            .setItems(options) { _, index -> editVocabularyEntry(index) }
+            .setPositiveButton("Add") { _, _ -> editVocabularyEntry(null) }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun editVocabularyEntry(index: Int?) {
+        val entries = VocabularyStore.load(this).toMutableList()
+        val existing = index?.let { entries[it] }
+        val word = EditText(this).apply { hint = "Correct spelling"; setText(existing?.spelling ?: "") }
+        val heard = EditText(this).apply { hint = "Often heard as (optional)"; setText(existing?.heardAs ?: "") }
+        val layout = vertical(dp(24), dp(8)).apply { addView(word); addView(heard) }
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(if (index == null) "Add word" else "Edit word")
+            .setView(layout)
+            .setPositiveButton("Save", null)
+            .setNegativeButton("Cancel", null)
+            .apply {
+                if (index != null) setNeutralButton("Delete") { _, _ ->
+                    entries.removeAt(index)
+                    VocabularyStore.save(this@MainActivity, entries)
+                    showVocabulary()
+                }
+            }.create()
+        dialog.setOnShowListener {
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                try {
+                    val entry = VocabularyStore.Entry(word.text.toString(), heard.text.toString())
+                    if (index == null) entries.add(entry) else entries[index] = entry
+                    VocabularyStore.save(this, entries)
+                    dialog.dismiss()
+                    showVocabulary()
+                } catch (e: Exception) { word.error = e.message }
+            }
+        }
+        dialog.show()
+    }
+
+    private fun showDotColorPicker() {
+        val colors = intArrayOf(0xDD1C1C1E.toInt(), 0xFF2196F3.toInt(), 0xFF4CAF50.toInt(), 0xFFFF9800.toInt(), 0xFFE91E63.toInt())
+        val labels = arrayOf("Default ●", "Blue ●", "Green ●", "Orange ●", "Pink ●", "Other colors…")
+        androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Dot color")
+            .setItems(labels) { _, which ->
+                if (which < colors.size) saveDotColor(colors[which]) else showCustomDotColor()
+            }.show()
+    }
+
+    private fun saveDotColor(color: Int) {
+        prefs().edit().putInt("dot_color", color).apply()
+        WhisperAccessibilityService.instance?.refreshOverlaySettings()
+    }
+
+    private fun showCustomDotColor() {
+        val preview = View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply { gravity = Gravity.CENTER_HORIZONTAL }
+        }
+        val hsv = FloatArray(3)
+        Color.colorToHSV(prefs().getInt("dot_color", 0xFF2196F3.toInt()), hsv)
+        val sliders = (0..2).map { i ->
+            SeekBar(this).apply { max = if (i == 0) 360 else 100; progress = if (i == 0) hsv[i].toInt() else (hsv[i] * 100).toInt() }
+        }
+        val update = {
+            preview.background = dotDrawable(Color.HSVToColor(hsv))
+        }
+        val layout = vertical(dp(24), dp(12)).apply {
+            addView(TextView(this@MainActivity).apply { text = "Live color preview · Hue / Saturation / Brightness" })
+            addView(preview)
+            sliders.forEachIndexed { i, bar ->
+                addView(TextView(this@MainActivity).apply { text = arrayOf("Hue", "Saturation", "Brightness")[i] })
+                addView(bar)
+                bar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                        hsv[i] = if (i == 0) progress.toFloat() else progress / 100f
+                        update()
+                    }
+                    override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                    override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+                })
+            }
+        }
+        update()
+        androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Custom dot color")
+            .setView(layout).setPositiveButton("Apply") { _, _ -> saveDotColor(Color.HSVToColor(hsv)) }
+            .setNegativeButton("Cancel", null).show()
     }
 
     private fun promptCustomInstructions() {
