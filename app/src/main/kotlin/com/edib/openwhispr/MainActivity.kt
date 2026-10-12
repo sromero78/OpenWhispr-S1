@@ -967,7 +967,7 @@ class MainActivity : AppCompatActivity() {
                 layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).apply {
                     marginEnd = dp(8)
                 }
-                setOnClickListener { saveDotColor(color); showDotColorPicker() }
+                setOnClickListener { saveDotColor(color) }
             }
             swatches.addView(swatch)
         }
