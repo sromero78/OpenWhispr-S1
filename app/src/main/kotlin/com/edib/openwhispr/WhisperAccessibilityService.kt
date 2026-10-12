@@ -913,7 +913,13 @@ class WhisperAccessibilityService : AccessibilityService() {
                 else -> if (foregroundPackage == "com.whatsapp" || foregroundPackage == "com.whatsapp.w4b")
                     PostProcessor.Style.WHATSAPP else PostProcessor.Style.NORMAL
             }
-            val prompt = PostProcessor.effectivePrompt(customInstructions, style, VocabularyStore.prompt(this))
+            val styleKey = when (style) {
+                PostProcessor.Style.WHATSAPP -> "whatsapp"
+                PostProcessor.Style.NORMAL -> "normal"
+                PostProcessor.Style.FORMAL -> "formal"
+            }
+            val styleOverride = prefs().getString("style_prompt_" + styleKey, null)
+            val prompt = PostProcessor.effectivePrompt(customInstructions, style, VocabularyStore.prompt(this), styleOverride)
 
             PostProcessor.process(text, prompt, apiKey) { result ->
                 handler.post {
