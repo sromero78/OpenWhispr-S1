@@ -62,6 +62,32 @@ class MainActivity : AppCompatActivity() {
     private lateinit var dictationContainer: LinearLayout
     private lateinit var settingsContainer: LinearLayout
 
+    private val exportVocabulary = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) try {
+            contentResolver.openOutputStream(uri)?.use { it.write(VocabularyStore.encode(VocabularyStore.load(this)).toByteArray(Charsets.UTF_8)) }
+                ?: error("Cannot open destination")
+            toast("Vocabulario exportado")
+        } catch (e: Exception) { toast("Error al exportar: ${e.message}") }
+    }
+    private val importVocabulary = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) try {
+            val raw = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: error("Cannot read file")
+            val imported = VocabularyStore.decode(raw)
+            val current = VocabularyStore.load(this)
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("¿Restaurar vocabulario?")
+                .setMessage("Se sustituirán ${current.size} entradas por ${imported.size} de la copia. Se guardará una copia de recuperación dentro de la aplicación.")
+                .setNegativeButton("Cancelar", null)
+                .setPositiveButton("Restaurar") { _, _ ->
+                    try {
+                        prefs().edit().putString("vocabulary_recovery", VocabularyStore.encode(current)).commit()
+                        VocabularyStore.save(this, imported)
+                        toast("Vocabulario restaurado")
+                    } catch (e: Exception) { toast("Error al restaurar: ${e.message}") }
+                }.show()
+        } catch (e: Exception) { toast("Copia no válida: ${e.message}") }
+    }
+
     private val modelRows = mutableMapOf<String, ModelRowViews>()
     private var batteryWarningShown = false
     private var setupExpanded = false
@@ -257,6 +283,10 @@ class MainActivity : AppCompatActivity() {
             "Ejemplos de estilo",
             "Edita cómo debe escribir Normal, WhatsApp / informal y Formal"
         ) { showStyleExamplesDialog() })
+
+        dictationContainer.addView(settingsRow("Vocabulario personal", "Nombres, lugares y grafías con pistas fonéticas") { showVocabulary() })
+        dictationContainer.addView(settingsRow("Exportar vocabulario", "Guardar copia JSON") { exportVocabulary.launch("openwispr-vocabulario.json") })
+        dictationContainer.addView(settingsRow("Restaurar vocabulario", "Importar una copia JSON validada") { importVocabulary.launch(arrayOf("application/json", "text/plain")) })
 
         dictationContainer.addView(settingsRow(
             "Cambio temporal de perfil",
@@ -1092,6 +1122,50 @@ class MainActivity : AppCompatActivity() {
         0xFF7B1FA2.toInt() -> "Violeta"
         else -> String.format("#%06X", 0xFFFFFF and color)
     }
+
+    private fun showVocabulary() {
+        val entries = VocabularyStore.load(this)
+        val options = entries.map { it.spelling + if (it.heardAs.isBlank()) "" else " · " + it.heardAs }.toTypedArray()
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Vocabulario personal")
+            .setItems(options) { _, index -> editVocabularyEntry(index) }
+            .setPositiveButton("Añadir") { _, _ -> editVocabularyEntry(null) }
+            .setNegativeButton("Cerrar", null)
+            .show()
+    }
+
+    private fun editVocabularyEntry(index: Int?) {
+        val entries = VocabularyStore.load(this).toMutableList()
+        val existing = index?.let { entries[it] }
+        val word = EditText(this).apply { hint = "Grafía correcta"; setText(existing?.spelling ?: "") }
+        val heard = EditText(this).apply { hint = "Se oye como (opcional)"; setText(existing?.heardAs ?: "") }
+        val layout = vertical(dp(24), dp(8)).apply { addView(word); addView(heard) }
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(if (index == null) "Añadir palabra" else "Editar palabra")
+            .setView(layout)
+            .setPositiveButton("Guardar", null)
+            .setNegativeButton("Cancelar", null)
+            .apply {
+                if (index != null) setNeutralButton("Eliminar") { _, _ ->
+                    entries.removeAt(index)
+                    VocabularyStore.save(this@MainActivity, entries)
+                    showVocabulary()
+                }
+            }.create()
+        dialog.setOnShowListener {
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                try {
+                    val entry = VocabularyStore.Entry(word.text.toString(), heard.text.toString())
+                    if (index == null) entries.add(entry) else entries[index] = entry
+                    VocabularyStore.save(this, entries)
+                    dialog.dismiss()
+                    showVocabulary()
+                } catch (e: Exception) { word.error = e.message }
+            }
+        }
+        dialog.show()
+    }
+
 
     private fun showOverlayColorDialog() {
         val names = arrayOf("Grafito", "Azul", "Verde azulado", "Ámbar", "Violeta")
