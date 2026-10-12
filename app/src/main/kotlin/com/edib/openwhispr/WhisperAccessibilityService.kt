@@ -115,10 +115,39 @@ class WhisperAccessibilityService : AccessibilityService() {
             overlayShown = false
         }
     }
+    private var lastOverlayRepairAt = 0L
+    private var overlayRepairAttempts = 0
+    private var lastRepairWindowAt = 0L
+
+    private fun repairOverlayIfNeeded() {
+        if (!masterEnabled()) return
+        val writingContext = accessibilityFocusSignal || imeVisibleSignal
+        val shouldBeVisible = state != State.IDLE || bubbleExpandedFromDot || writingContext ||
+            (prefs().getBoolean("minimize_to_dot", false) && !dotExpired)
+        if (!shouldBeVisible) return // Never revive a deliberately expired dot.
+        val view = overlayView
+        val detached = view == null || !view.isAttachedToWindow
+        val unexpectedlyHidden = overlayShown && view?.visibility != View.VISIBLE &&
+            view?.animation == null && view?.animate() != null &&
+            view?.alpha == 0f
+        if (!detached && !unexpectedlyHidden) return
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastRepairWindowAt > 60000L) {
+            lastRepairWindowAt = now
+            overlayRepairAttempts = 0
+        }
+        if (now - lastOverlayRepairAt < 5000L || overlayRepairAttempts >= 3) return
+        lastOverlayRepairAt = now
+        overlayRepairAttempts++
+        Log.w(TAG, "Overlay watchdog repairing: detached=$detached hidden=$unexpectedlyHidden")
+        if (detached) ensureOverlayAttached(force = true)
+        updateOverlayVisibility()
+    }
+
     private val focusPoller = object : Runnable {
         override fun run() {
-            ensureOverlayAttached()
             refreshAccessibilityFocusSignal()
+            repairOverlayIfNeeded()
             handler.postDelayed(this, FOCUS_POLL_MS)
         }
     }
