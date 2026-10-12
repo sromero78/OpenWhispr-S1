@@ -68,7 +68,7 @@ class MainActivity : AppCompatActivity() {
             androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle("Restore vocabulary?")
                 .setMessage("Replace ${current.size} existing entries with ${imported.size} entries from the backup? A recovery copy of the current vocabulary will be saved inside the app.")
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton("Cancelar", null)
                 .setPositiveButton("Restore") { _, _ ->
                     try {
                         prefs().edit().putString("vocabulary_recovery", VocabularyStore.encode(current)).commit()
@@ -261,22 +261,23 @@ class MainActivity : AppCompatActivity() {
         customInstructionsRowSub.maxLines = 2
         customInstructionsRowSub.ellipsize = android.text.TextUtils.TruncateAt.END
         dictationContainer.addView(customInstructionsRow)
-        dictationContainer.addView(settingsRow("Personal vocabulary", "Names, places, acronyms and spelling hints") { showVocabulary() })
-        dictationContainer.addView(settingsRow("Export vocabulary", "Save a JSON backup to Files or Google Drive") { exportVocabulary.launch("openwispr-vocabulary.json") })
-        dictationContainer.addView(settingsRow("Restore vocabulary", "Validate a backup before replacing entries") { importVocabulary.launch(arrayOf("application/json", "text/plain")) })
+        dictationContainer.addView(settingsRow("Vocabulario personal", "Nombres, lugares, siglas y pronunciaciones") { showVocabulary() })
+        dictationContainer.addView(settingsRow("Exportar vocabulario", "Guardar copia JSON en Archivos o Drive") { exportVocabulary.launch("openwispr-vocabulary.json") })
+        dictationContainer.addView(settingsRow("Restaurar vocabulario", "Validar copia antes de sustituir entradas") { importVocabulary.launch(arrayOf("application/json", "text/plain")) })
 
-        val styleOptions = arrayOf("Automatic (WhatsApp / Normal)", "WhatsApp informal", "Normal", "Formal")
+        val styleOptions = arrayOf("Automático (WhatsApp / Normal)", "WhatsApp informal", "Normal", "Formal")
         val styleValues = arrayOf("auto", "whatsapp", "normal", "formal")
-        dictationContainer.addView(settingsRow("Dictation style", "Choose automatic or manual formatting") {
+        dictationContainer.addView(settingsRow("Estilos de dictado", "Selección automática y edición de instrucciones") {
             val current = prefs().getString("dictation_style", "auto")
             val checked = styleValues.indexOf(current).coerceAtLeast(0)
             androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("Dictation style")
+                .setTitle("Estilo de dictado")
                 .setSingleChoiceItems(styleOptions, checked) { dialog, which ->
                     prefs().edit().putString("dictation_style", styleValues[which]).apply()
                     dialog.dismiss()
                 }
-                .setNegativeButton("Cancel", null)
+                .setNeutralButton("Editar estilos") { _, _ -> showStyleEditor() }
+                .setNegativeButton("Cancelar", null)
                 .show()
         })
 
@@ -319,7 +320,7 @@ class MainActivity : AppCompatActivity() {
         settingsContainer.addView(keyRow)
 
         settingsContainer.addView(sectionHeader("Overlay"))
-        settingsContainer.addView(settingsRow("Dot color", "Presets and custom color picker") { showDotColorPicker() })
+        settingsContainer.addView(settingsRow("Color del punto", "Paleta visual y color personalizado") { showDotColorPicker() })
 
 
         val minimizeSwitch = MaterialSwitch(this).apply {
@@ -905,10 +906,50 @@ class MainActivity : AppCompatActivity() {
         dialog.show()
     }
 
+
+    private fun showStyleEditor() {
+        val names = arrayOf("WhatsApp informal", "Normal", "Formal")
+        val keys = arrayOf("whatsapp", "normal", "formal")
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Editar instrucciones de los estilos")
+            .setItems(names) { _, index ->
+                val key = "style_prompt_" + keys[index]
+                val defaults = arrayOf(
+                    "Mensajes naturales e informales. En español no utilices los signos de apertura ¿ ni ¡; conserva ? y !. Respeta el significado y las autocorrecciones.",
+                    "Puntuación y ortografía normales, incluidos los signos ¿ y ¡ en español. Respeta el significado y las autocorrecciones.",
+                    "Redacción profesional y cuidada, sin añadir información ni cambiar el significado."
+                )
+                val field = EditText(this).apply {
+                    setText(prefs().getString(key, defaults[index]))
+                    minLines = 4
+                    maxLines = 12
+                    inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                }
+                val container = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(20), dp(8), dp(20), 0)
+                    addView(field)
+                }
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("Editar: " + names[index])
+                    .setView(container)
+                    .setPositiveButton("Guardar") { _, _ ->
+                        prefs().edit().putString(key, field.text.toString().trim()).apply()
+                    }
+                    .setNeutralButton("Restablecer") { _, _ ->
+                        prefs().edit().remove(key).apply()
+                    }
+                    .setNegativeButton("Cancelar", null)
+                    .show()
+            }
+            .setNegativeButton("Cerrar", null)
+            .show()
+    }
+
     private fun showDotColorPicker() {
         val colors = intArrayOf(0xDD1C1C1E.toInt(), 0xFF2196F3.toInt(), 0xFF4CAF50.toInt(), 0xFFFF9800.toInt(), 0xFFE91E63.toInt())
-        val labels = arrayOf("Default ●", "Blue ●", "Green ●", "Orange ●", "Pink ●", "Other colors…")
-        androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Dot color")
+        val labels = arrayOf("Predeterminado", "Azul", "Verde", "Naranja", "Rosa", "Más colores…")
+        androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Color del punto")
             .setItems(labels) { _, which ->
                 if (which < colors.size) saveDotColor(colors[which]) else showCustomDotColor()
             }.show()
@@ -932,10 +973,10 @@ class MainActivity : AppCompatActivity() {
             preview.background = dotDrawable(Color.HSVToColor(hsv))
         }
         val layout = vertical(dp(24), dp(12)).apply {
-            addView(TextView(this@MainActivity).apply { text = "Live color preview · Hue / Saturation / Brightness" })
+            addView(TextView(this@MainActivity).apply { text = "Vista previa del punto · Tono / Saturación / Brillo" })
             addView(preview)
             sliders.forEachIndexed { i, bar ->
-                addView(TextView(this@MainActivity).apply { text = arrayOf("Hue", "Saturation", "Brightness")[i] })
+                addView(TextView(this@MainActivity).apply { text = arrayOf("Tono", "Saturación", "Brillo")[i] })
                 addView(bar)
                 bar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
@@ -948,8 +989,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
         update()
-        androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Custom dot color")
-            .setView(layout).setPositiveButton("Apply") { _, _ -> saveDotColor(Color.HSVToColor(hsv)) }
+        androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Color personalizado")
+            .setView(layout).setPositiveButton("Aplicar") { _, _ -> saveDotColor(Color.HSVToColor(hsv)) }
             .setNegativeButton("Cancel", null).show()
     }
 
