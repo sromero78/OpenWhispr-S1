@@ -88,7 +88,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish Canary S9 prerelease for Obtainium
-        if: github.ref == 'refs/heads/feature/canary-s9'
+        if: github.ref == 'refs/heads/feature/canary-s9' && false # Hold release until full validation
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v3.10.0-canary.9
