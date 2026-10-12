@@ -142,9 +142,11 @@ class WhisperAccessibilityService : AccessibilityService() {
             overlayShown = false
         }
     }
+    private var overlayRepairAttemptMs = 0L
     private val focusPoller = object : Runnable {
         override fun run() {
             ensureOverlayAttached()
+            repairUnexpectedOverlayLoss()
             refreshAccessibilityFocusSignal()
             handler.postDelayed(this, FOCUS_POLL_MS)
         }
@@ -490,6 +492,23 @@ class WhisperAccessibilityService : AccessibilityService() {
                 Log.e(TAG, "Overlay recreation failed", e)
             }
         }
+    }
+
+    private fun repairUnexpectedOverlayLoss() {
+        if (!masterEnabled() || state != State.IDLE || dotExpired || dotHideScheduled) return
+        val view = overlayView ?: return
+        if (!overlayShown || !view.isAttachedToWindow) return
+        // The overlay can be hidden by a window transition without a corresponding
+        // accessibility event. Never override deliberate timeout or master disable.
+        if (view.visibility == View.VISIBLE && view.alpha > 0.05f) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - overlayRepairAttemptMs < 15000L) return
+        overlayRepairAttemptMs = now
+        Log.w(TAG, "Repairing unexpectedly invisible overlay")
+        view.animate().cancel()
+        view.visibility = View.VISIBLE
+        view.alpha = idleAlpha()
+        setTouchable(true)
     }
 
     private fun showOverlayState(minimized: Boolean) {
@@ -1101,7 +1120,8 @@ class WhisperAccessibilityService : AccessibilityService() {
             val refinements = listOf(profileInstructions, customInstructions)
                 .filter { it.isNotBlank() }
                 .joinToString("\n\n")
-            val prompt = PostProcessor.effectivePrompt(refinements)
+            val spellingHints = VocabularyStore.prompt(this)
+            val prompt = PostProcessor.effectivePrompt(refinements + if (spellingHints.isBlank()) "" else "\n\nVocabulario personal: respeta estas grafías solo cuando se hayan pronunciado las palabras correspondientes; nunca introduzcas palabras nuevas ni sustituyas conceptos por semejanza semántica:\n" + spellingHints)
 
             PostProcessor.process(text, prompt, apiKey) { result ->
                 handler.post {
