@@ -21,11 +21,11 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.edib.openwhispr"
+        applicationId = "com.edib.openwhispr.canary"
         minSdk = 30
         targetSdk = 35
-        versionCode = 34
-        versionName = "3.10.0-s9"
+        versionCode = 43
+        versionName = "3.10.0-canary.9"
 
         ndk { abiFilters += "arm64-v8a" }
     }
