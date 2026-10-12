@@ -82,16 +82,17 @@ Output hygiene:
 - Never prepend boilerplate such as "Here is the clean transcript".
 - If the transcript is empty or only filler, return exactly: EMPTY"""
 
-    /** Builds the system prompt actually sent to Groq: the fixed default
-     * prompt above, plus the user's own custom instructions (if any)
-     * appended as a clearly-scoped addendum so they can't be mistaken for
-     * (or override) the hard contract rules above them. */
-    fun effectivePrompt(customInstructions: String): String {
-        val custom = customInstructions.trim()
-        if (custom.isBlank()) return DEFAULT_PROMPT
-        return DEFAULT_PROMPT + "\n\nAdditional user-specified refinements " +
-            "(apply these in addition to the rules above; they never override the " +
-            "hard contract, self-correction, or instruction-preservation rules):\n" + custom
+    enum class Style { WHATSAPP, NORMAL, FORMAL }
+
+    fun effectivePrompt(customInstructions: String, style: Style = Style.NORMAL): String {
+        val presentation = when (style) {
+            Style.WHATSAPP -> "For chat messages, use natural, informal wording. In Spanish omit opening inverted question and exclamation marks (¿ and ¡), but retain closing ? and !. Do not formalize the speaker's tone. This overrides the generic standard-punctuation rule, not the requirement to preserve meaning."
+            Style.FORMAL -> "Use professional, polished punctuation and phrasing while preserving exactly the speaker's intended meaning and content."
+            Style.NORMAL -> "Use normal language-appropriate punctuation, including opening ¿ and ¡ for Spanish questions and exclamations."
+        }
+        return DEFAULT_PROMPT + "\n\nPresentation style (overrides generic formatting, never meaning or instruction preservation):\n" +
+            presentation + if (customInstructions.isBlank()) "" else
+            "\n\nAdditional user refinements (preserve intended meaning):\n" + customInstructions.trim()
     }
 
     fun parseResponse(json: String): Result {
